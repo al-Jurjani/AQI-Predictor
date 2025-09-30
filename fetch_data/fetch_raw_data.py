@@ -51,6 +51,7 @@ if __name__ == "__main__":
     # Combine all data into one dictionary
     combined_data = {
         "timestamp": pd.Timestamp.now().isoformat(),
+        "city": target_city,
         "weather": weather_data,
         "pollution": pollution_data,
         "aqi_index": aqi_data
