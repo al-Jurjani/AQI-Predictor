@@ -19,7 +19,7 @@ def tabularize_raw_data(json_filepath: str) -> pd.DataFrame:
         # getting pollution data
         pollution = data.get("pollution", {})
         pollution_components = pollution.get("list", [{}])[0].get("components", {})
-        aqi_index = data.get("owm_aqi_index")
+        ow_aqi_index = data.get("ow_aqi_index").get("ow_aqi_index")
 
         # creating a pd row
         row = {
@@ -44,7 +44,7 @@ def tabularize_raw_data(json_filepath: str) -> pd.DataFrame:
         "pm10": pollution_components.get("pm10"),
         "nh3": pollution_components.get("nh3"),
         
-        "owm_aqi_index": aqi_index,
+        "ow_aqi_index": ow_aqi_index,
     }
         
         return pd.DataFrame([row])

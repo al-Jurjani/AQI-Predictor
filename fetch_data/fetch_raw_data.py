@@ -30,8 +30,8 @@ def fetch_pollution_data(city: str):
 # Get the OpenWeatherMap's AQI for the city as well
 def fetch_aqi_index(city: str):
     pollution_data = fetch_pollution_data(city)
-    aqi_index = pollution_data["list"][0]["main"]["aqi"]
-    return {"city": city, "aqi_index": aqi_index}
+    ow_aqi_index = pollution_data["list"][0]["main"]["aqi"]
+    return {"city": city, "ow_aqi_index": ow_aqi_index}
 
 def save_json(data:dict, prefix: str = "raw_data"):
     timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
@@ -54,7 +54,7 @@ if __name__ == "__main__":
         "city": target_city,
         "weather": weather_data,
         "pollution": pollution_data,
-        "aqi_index": aqi_data
+        "ow_aqi_index": aqi_data
     }
 
     # Save the combined data to a JSON file
