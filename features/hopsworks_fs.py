@@ -32,7 +32,8 @@ except Exception:
     feature_group = the_fs.create_feature_group(
         name="air_quality_data",
         version=1,
-        primary_key=["city", "timestamp_utc"],
+        primary_key=["city", "timestamp_key"],
+        event_time = "timestamp_utc",
         description="Hourly engineered features data for predicting AQI index.",
         online_enabled=True
     )
@@ -48,6 +49,7 @@ if feature_group is not None:
 
         # Make sure dtype is correct
         the_df["timestamp_utc"] = pd.to_datetime(the_df["timestamp_utc"], utc=True)
+        the_df["timestamp_key"] = the_df["timestamp_utc"].astype(str) # for pk of hopsworks fs
 
         print("A preview of the dataframe is as follows: \n")
         print(the_df.head())
