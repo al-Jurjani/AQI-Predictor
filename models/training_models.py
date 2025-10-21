@@ -11,6 +11,7 @@ from sklearn.ensemble import RandomForestRegressor
 import xgboost
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
+from model_card_generator import create_model_card
 from shap_analysis import generate_shap_analysis
 
 # data_file_path = "training_data/training_dataset.csv"
@@ -37,6 +38,17 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
     print(f"RMSE: {rmse:.4f}, MAE: {mae:.4f}, R²: {r2:.4f}")
     print("-"*21)
     return {"Model": model, "Model Name": name, "RMSE": rmse, "MAE": mae, "R2": r2}
+
+def evaluate_model_performance(metrics, threshold_rmse=50):
+    rmse = metrics.get("RMSE", None)
+    if rmse is None:
+        return False, "RMSE metric missing."
+
+    if rmse <= threshold_rmse:
+        return True, f"Model passed: RMSE={rmse:.2f} ≤ {threshold_rmse}"
+    else:
+        return False, f"Model failed: RMSE={rmse:.2f} > {threshold_rmse}"
+
 
 # results = []
 
@@ -96,6 +108,10 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
             best_model = result["Model"]
         results.append(result)
 
+    # don't see the point for this at the moment
+    # passed, eval_msg = evaluate_model_performance(metrics)
+    # print(eval_msg)
+
     # creating a  timestamp 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_dir = f"models/run_{timestamp}"
@@ -135,6 +151,9 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=4)
 
+    # will judge later if really needed, we already have the json file
+    # model_card_path = os.path.join(run_dir, "model_card.txt")
+    # create_model_card(metadata, model_card_path)
     # best_model = metrics_df.sort_values(by="RMSE").iloc[0]["Model"]
      
     return best_model, best_model_name, metrics_df
