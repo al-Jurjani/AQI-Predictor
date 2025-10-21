@@ -1,4 +1,6 @@
 Model,Model Name,RMSE,MAE,R2
 LinearRegression(),Linear Regression,0.738724087315915,0.702299031429001,-1.1828531087229264
 Ridge(),Ridge Regression,0.7347268142844698,0.6986845939660209,-1.1592939665144235
+Ridge(alpha=0.3),Ridge Regression (alpha = 0.3),0.7375227660919297,0.7012128084513822,-1.1757593220155647
 RandomForestRegressor(random_state=42),Random Forest,0.5663920903402517,0.41999999999999993,-0.28319999999999945
+"RandomForestRegressor(max_depth=2, n_estimators=50, random_state=42)",Random Forest (Altered),0.6046486583132389,0.5,-0.4623999999999997

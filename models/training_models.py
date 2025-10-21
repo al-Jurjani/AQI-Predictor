@@ -11,6 +11,8 @@ from sklearn.ensemble import RandomForestRegressor
 import xgboost
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
+from shap_analysis import generate_shap_analysis
+
 # data_file_path = "training_data/training_dataset.csv"
 # output_path = "models/baseline_metrics.csv"
 
@@ -76,7 +78,8 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
         "Linear Regression": LinearRegression(),
         "Ridge Regression": Ridge(alpha=1.0),
         "Ridge Regression (alpha = 0.3)":Ridge(alpha=0.3),
-        # "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
+        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
+        "Random Forest (Altered)": RandomForestRegressor(n_estimators=50, max_depth=2, random_state=42)
     }
 
     # Train and evaluate
@@ -123,6 +126,15 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=4)
     print(f"Best model meta data saved at: {metadata_path}")
+
+    #SHAP Analysis
+    summary_path, bar_path = generate_shap_analysis(best_model, X_train, run_dir)
+    if summary_path and bar_path:
+        metadata["shap_summary_plot"] = summary_path
+        metadata["shap_bar_plot"] = bar_path
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=4)
+
     # best_model = metrics_df.sort_values(by="RMSE").iloc[0]["Model"]
      
     return best_model, best_model_name, metrics_df
