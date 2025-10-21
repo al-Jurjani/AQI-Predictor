@@ -1,3 +1,5 @@
+import datetime
+import json
 import joblib
 import pandas as pd
 import numpy as np
@@ -50,7 +52,7 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
 # metrics_df.to_csv(output_path, index = False)
 
 # turning this into a single function to be used by automated_training.py
-def train_and_evaluate_models(data_file_path, output_path, test_size=0.2, split_random_state=21):
+def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=21):
     # --- Main Function Logic ---
     print(f"Loading data from: {data_file_path}")
     try:
@@ -73,7 +75,8 @@ def train_and_evaluate_models(data_file_path, output_path, test_size=0.2, split_
     models = {
         "Linear Regression": LinearRegression(),
         "Ridge Regression": Ridge(alpha=1.0),
-        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
+        "Ridge Regression (alpha = 0.3)":Ridge(alpha=0.3),
+        # "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
     }
 
     # Train and evaluate
@@ -90,17 +93,39 @@ def train_and_evaluate_models(data_file_path, output_path, test_size=0.2, split_
             best_model = result["Model"]
         results.append(result)
 
+    # creating a  timestamp 
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir = f"models/run_{timestamp}"
+    os.makedirs(run_dir, exist_ok=True)
+
     metrics_df = pd.DataFrame(results)
-    metrics_df.to_csv("models/baseline_metrics.csv", index=False)
-    print(f"Training model metrics saved at: models/baseline_metrics.csv")
+    metrics_csv_path = f"{run_dir}/baseline_metrics.csv"
+    metrics_df.to_csv(metrics_csv_path, index=False)
+    print(f"Training model metrics saved at: {run_dir}]/baseline_metrics.csv")
 
     print(f"Best model of this training batch: {best_model_name}") 
-    best_model_path = f"models/{best_model_name.replace(' ', '_').lower()}_model.pkl"
+    best_model_path = f"{run_dir}/{best_model_name.replace(' ', '_').lower()}_model.pkl"
     joblib.dump(best_model, best_model_path)
+    print(f"Best model file saved at: {best_model_path}")
 
+    metadata = {
+        "best_model": best_model_name,
+        "artifact_path": best_model_path,
+        "timestamp": timestamp,
+        "metrics": {
+            "RMSE": float(best_rmse),
+            "MAE": float(metrics_df.loc[metrics_df['Model Name'] == best_model_name, 'MAE'].values[0]),
+            "R2": float(metrics_df.loc[metrics_df['Model Name'] == best_model_name, 'R2'].values[0])
+        },
+        "data_source": data_file_path
+    }
+    metadata_path = os.path.join(run_dir, "best_model_metadata.json")
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=4)
+    print(f"Best model meta data saved at: {metadata_path}")
     # best_model = metrics_df.sort_values(by="RMSE").iloc[0]["Model"]
      
-    return best_model,best_model_name, metrics_df
+    return best_model, best_model_name, metrics_df
 
 # This block allows the script to be run directly
 if __name__ == "__main__":
@@ -114,7 +139,6 @@ if __name__ == "__main__":
     # Call the function
     metrics = train_and_evaluate_models(
         data_file_path=DEFAULT_DATA_FILE,
-        output_path=DEFAULT_OUTPUT_FILE
     )
     
     if metrics is not None:

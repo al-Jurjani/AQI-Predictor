@@ -1,0 +1,11 @@
+{
+    "best_model": "Ridge Regression",
+    "artifact_path": "models/run_2025-10-21_12-15-48/ridge_regression_model.pkl",
+    "timestamp": "2025-10-21_12-15-48",
+    "metrics": {
+        "RMSE": 0.7347268142844698,
+        "MAE": 0.6986845939660209,
+        "R2": -1.1592939665144235
+    },
+    "data_source": "training_data/training_dataset.csv"
+}
