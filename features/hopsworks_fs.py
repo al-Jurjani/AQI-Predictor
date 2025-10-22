@@ -51,16 +51,16 @@ if feature_group is not None:
         the_df["timestamp_utc"] = pd.to_datetime(the_df["timestamp_utc"], utc=True)
         the_df["timestamp_key"] = the_df["timestamp_utc"].astype(str) # for pk of hopsworks fs
 
-        print("A preview of the dataframe is as follows: \n")
-        print(the_df.head())
-        print("-"*21)
-        print("The features of the dataframe include: \n", the_df.columns)
-        print(the_df.dtypes["timestamp_utc"])
-        print("-"*21)
+        # print("A preview of the dataframe is as follows: \n")
+        # print(the_df.head())
+        # print("-"*21)
+        # print("The features of the dataframe include: \n", the_df.columns)
+        # print(the_df.dtypes["timestamp_utc"])
+        # print("-"*21)
 
         # inserting in the feature store
         print("Inserting the dataframe into the feature group...")
-        feature_group.insert(the_df, write_options={"wait_for_job": False})
+        feature_group.insert(the_df, write_options={"wait_for_job": True})
     else:
         print("No data available to insert into the feature group.")
 else:

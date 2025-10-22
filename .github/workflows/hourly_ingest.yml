@@ -1,0 +1,76 @@
+name: Hourly Ingestion
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # every hour at minute 0
+  workflow_dispatch:    # allow manual trigger
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      # will be overridden by secrets, but helpful for local testing with defaults (optional)
+      OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+      HOPSWORKS_API_KEY: ${{ secrets.hopsworks_api_key }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Show Python version & pwd
+        run: |
+          python --version
+          pwd
+          ls -la
+
+      - name: Export secrets to env (runtime)
+        run: |
+          echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" >> $GITHUB_ENV
+          echo "HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }}" >> $GITHUB_ENV
+
+      - name: Run fetch_data to pull latest JSON
+        # adjust path if your fetch script lives elsewhere
+        run: |
+          set -e
+          echo "Running fetch_data.py..."
+          python fetch_data/fetch_raw_data.py
+        # if your script requires any env var names other than above, ensure they are set
+
+      - name: Commit new JSON data
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add raw_data/*.json
+          git commit -m "Add new JSON data [skip ci]" || echo "No changes to commit"
+          git push
+
+      - name: Run parser + feature pipeline + upload
+        run: |
+          set -e
+          echo "Running hopsworks_fs.py..."
+          python features/hopsworks_fs.py
+
+      - name: Commit archived files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add raw_data/archive/*.json
+          git commit -m "Archive processed JSONs [skip ci]" || echo "No changes to commit"
+          git push
+
+      - name: List data dir (debug)
+        if: failure() || always()
+        run: |
+          echo "Contents of data/ and backfilled_data/ (for debugging)"
+          ls -la data || true
+          ls -la backfilled_data || true
