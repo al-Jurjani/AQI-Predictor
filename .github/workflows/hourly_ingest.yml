@@ -11,7 +11,7 @@ jobs:
     env:
       # will be overridden by secrets, but helpful for local testing with defaults (optional)
       OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-      HOPSWORKS_API_KEY: ${{ secrets.hopsworks_api_key }}
+      HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
 
     steps:
       - name: Checkout repo
@@ -33,10 +33,10 @@ jobs:
           pwd
           ls -la
 
-      - name: Export secrets to env (runtime)
-        run: |
-          echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" >> $GITHUB_ENV
-          echo "HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }}" >> $GITHUB_ENV
+    #   - name: Export secrets to env (runtime)
+    #     run: |
+    #       echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" >> $GITHUB_ENV
+    #       echo "HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }}" >> $GITHUB_ENV
 
       - name: Run fetch_data to pull latest JSON
         # adjust path if your fetch script lives elsewhere
@@ -71,6 +71,6 @@ jobs:
       - name: List data dir (debug)
         if: failure() || always()
         run: |
-          echo "Contents of data/ and backfilled_data/ (for debugging)"
-          ls -la data || true
+          echo "Contents of raw_data/ and backfilled_data/ (for debugging)"
+          ls -la raw_data || true
           ls -la backfilled_data || true
