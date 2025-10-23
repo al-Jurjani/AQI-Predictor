@@ -4,3 +4,4 @@ scikit-learn
 streamlit
 shap
 python-dotenv
+hopsworks
