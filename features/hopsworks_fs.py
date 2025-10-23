@@ -7,8 +7,11 @@ from dotenv import load_dotenv
 
 from tabulizer import tabularize_all_files
 
-load_dotenv()
-the_hopsworks_api_key = os.getenv("hopsworks_api_key")
+# load_dotenv()
+# the_hopsworks_api_key = os.getenv("hopsworks_api_key")
+the_hopsworks_api_key = os.getenv("HOPSWORKS_API_KEY")
+if not the_hopsworks_api_key:
+        raise ValueError("the_hopsworks_api_key environment variable not set or empty!")
 if the_hopsworks_api_key:
     the_project = hopsworks.login(api_key_value=the_hopsworks_api_key)
 else:

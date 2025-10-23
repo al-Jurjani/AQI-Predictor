@@ -15,12 +15,18 @@ lat, lon = 24.8607, 67.0011
 city_coords = {"Karachi": {"lat": lat, "lon": lon}}
 
 def fetch_weather(city: str):
+    ow_api_key = os.environ.get('OPENWEATHER_API_KEY')
+    if not ow_api_key:
+        raise ValueError("OPENWEATHER_API_KEY environment variable not set or empty!")
     url = f"http://api.openweathermap.org/data/2.5/weather?q={target_city}&appid={ow_api_key}"
     r = requests.get(url)
     r.raise_for_status() # for error handling
     return r.json()
 
 def fetch_pollution_data(city: str):
+    ow_api_key = os.environ.get('OPENWEATHER_API_KEY')
+    if not ow_api_key:
+        raise ValueError("OPENWEATHER_API_KEY environment variable not set or empty!")
     coords = city_coords[city]
     url = f"http://api.openweathermap.org/data/2.5/air_pollution?lat={coords['lat']}&lon={coords['lon']}&appid={ow_api_key}"
     r = requests.get(url)

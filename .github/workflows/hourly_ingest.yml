@@ -38,8 +38,19 @@ jobs:
     #       echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" >> $GITHUB_ENV
     #       echo "HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }}" >> $GITHUB_ENV
 
+      - name: Verify secrets are set
+        run: |
+          if [ -z "$OPENWEATHER_API_KEY" ]; then echo "OPENWEATHER_API_KEY is not set"; exit 1; fi
+          if [ -z "$HOPSWORKS_API_KEY" ]; then echo "HOPSWORKS_API_KEY is not set"; exit 1; fi
+          echo "All secrets verified (not empty)"
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+
       - name: Run fetch_data to pull latest JSON
         # adjust path if your fetch script lives elsewhere
+        # env:
+        #   OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
           set -e
           echo "Running fetch_data.py..."
@@ -55,6 +66,8 @@ jobs:
           git push
 
       - name: Run parser + feature pipeline + upload
+        # env:
+        #   HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
         run: |
           set -e
           echo "Running hopsworks_fs.py..."
