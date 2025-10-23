@@ -8,12 +8,18 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    
+    # Set secrets at job level so all steps can access them
     env:
-      # will be overridden by secrets, but helpful for local testing with defaults (optional)
       OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
       HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
 
     steps:
+      - name: List available contexts (debug)
+        run: |
+          echo "Secrets context available: ${{ toJSON(secrets) != '{}' }}"
+          echo "Number of secrets: ${{ secrets != null }}"
+          
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -33,29 +39,37 @@ jobs:
           pwd
           ls -la
 
-    #   - name: Export secrets to env (runtime)
-    #     run: |
-    #       echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" >> $GITHUB_ENV
-    #       echo "HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }}" >> $GITHUB_ENV
-
-      - name: Verify secrets are set
+      - name: Debug - Check if secrets are available
         run: |
-          if [ -z "$OPENWEATHER_API_KEY" ]; then echo "OPENWEATHER_API_KEY is not set"; exit 1; fi
-          if [ -z "$HOPSWORKS_API_KEY" ]; then echo "HOPSWORKS_API_KEY is not set"; exit 1; fi
-          echo "All secrets verified (not empty)"
-        env:
-          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          echo "Checking secret availability..."
+          if [ -n "$OPENWEATHER_API_KEY" ]; then 
+            echo "✓ OPENWEATHER_API_KEY is set (length: ${#OPENWEATHER_API_KEY})"
+          else 
+            echo "✗ OPENWEATHER_API_KEY is NOT set"
+          fi
+          
+          if [ -n "$HOPSWORKS_API_KEY" ]; then 
+            echo "✓ HOPSWORKS_API_KEY is set (length: ${#HOPSWORKS_API_KEY})"
+          else 
+            echo "✗ HOPSWORKS_API_KEY is NOT set"
+          fi
+          
+          # Fail if either secret is missing
+          if [ -z "$OPENWEATHER_API_KEY" ] || [ -z "$HOPSWORKS_API_KEY" ]; then
+            echo ""
+            echo "ERROR: One or more secrets are not set!"
+            echo "Please check:"
+            echo "1. Secrets are added in Settings → Secrets and variables → Actions"
+            echo "2. Secret names match exactly: OPENWEATHER_API_KEY and HOPSWORKS_API_KEY"
+            echo "3. This is not a forked repository (forks don't have access to secrets)"
+            exit 1
+          fi
 
       - name: Run fetch_data to pull latest JSON
-        # adjust path if your fetch script lives elsewhere
-        # env:
-        #   OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
           set -e
           echo "Running fetch_data.py..."
           python fetch_data/fetch_raw_data.py
-        # if your script requires any env var names other than above, ensure they are set
 
       - name: Commit new JSON data
         run: |
@@ -66,8 +80,6 @@ jobs:
           git push
 
       - name: Run parser + feature pipeline + upload
-        # env:
-        #   HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
         run: |
           set -e
           echo "Running hopsworks_fs.py..."
