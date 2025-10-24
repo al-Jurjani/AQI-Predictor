@@ -1,0 +1,77 @@
+{
+    "timestamp": "2025-10-24T16:17:19.700254",
+    "city": "Karachi",
+    "weather": {
+        "coord": {
+            "lon": 67.0822,
+            "lat": 24.9056
+        },
+        "weather": [
+            {
+                "id": 721,
+                "main": "Haze",
+                "description": "haze",
+                "icon": "50n"
+            }
+        ],
+        "base": "stations",
+        "main": {
+            "temp": 297.05,
+            "feels_like": 296.62,
+            "temp_min": 297.05,
+            "temp_max": 297.05,
+            "pressure": 1010,
+            "humidity": 43,
+            "sea_level": 1010,
+            "grnd_level": 1006
+        },
+        "visibility": 2500,
+        "wind": {
+            "speed": 1.03,
+            "deg": 10
+        },
+        "clouds": {
+            "all": 0
+        },
+        "dt": 1761322639,
+        "sys": {
+            "type": 1,
+            "id": 7576,
+            "country": "PK",
+            "sunrise": 1761269648,
+            "sunset": 1761310640
+        },
+        "timezone": 18000,
+        "id": 1174872,
+        "name": "Karachi",
+        "cod": 200
+    },
+    "pollution": {
+        "coord": {
+            "lon": 67.0011,
+            "lat": 24.8607
+        },
+        "list": [
+            {
+                "main": {
+                    "aqi": 4
+                },
+                "components": {
+                    "co": 274.29,
+                    "no": 0,
+                    "no2": 0.58,
+                    "o3": 150.79,
+                    "so2": 2.79,
+                    "pm2_5": 74.75,
+                    "pm10": 128.16,
+                    "nh3": 0.19
+                },
+                "dt": 1761322058
+            }
+        ]
+    },
+    "ow_aqi_index": {
+        "city": "Karachi",
+        "ow_aqi_index": 4
+    }
+}
