@@ -3,23 +3,18 @@ name: Hourly Ingestion
 on:
   schedule:
     - cron: "0 * * * *"  # every hour at minute 0
-  workflow_dispatch:    # allow manual trigger
+  workflow_dispatch:      # allow manual trigger
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    
-    # Set secrets at job level so all steps can access them
+
     env:
       OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
       HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+      AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
 
     steps:
-      - name: List available contexts (debug)
-        run: |
-          echo "Secrets context available: ${{ toJSON(secrets) != '{}' }}"
-          echo "Number of secrets: ${{ secrets != null }}"
-          
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -33,77 +28,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Show Python version & pwd
+      - name: Verify secrets
         run: |
-          python --version
-          pwd
-          ls -la
+          for key in OPENWEATHER_API_KEY HOPSWORKS_API_KEY AZURE_STORAGE_CONNECTION_STRING; do
+            if [ -z "${!key}" ]; then
+              echo "❌ Missing secret: $key"
+              exit 1
+            else
+              echo "✅ $key is set"
+            fi
+          done
 
-      - name: Debug - Check if secrets are available
+      - name: Fetch latest raw weather data (uploads to Azure Blob)
         run: |
-          echo "Checking secret availability..."
-          if [ -n "$OPENWEATHER_API_KEY" ]; then 
-            echo "✓ OPENWEATHER_API_KEY is set (length: ${#OPENWEATHER_API_KEY})"
-          else 
-            echo "✗ OPENWEATHER_API_KEY is NOT set"
-          fi
-          
-          if [ -n "$HOPSWORKS_API_KEY" ]; then 
-            echo "✓ HOPSWORKS_API_KEY is set (length: ${#HOPSWORKS_API_KEY})"
-          else 
-            echo "✗ HOPSWORKS_API_KEY is NOT set"
-          fi
-          
-          # Fail if either secret is missing
-          if [ -z "$OPENWEATHER_API_KEY" ] || [ -z "$HOPSWORKS_API_KEY" ]; then
-            echo ""
-            echo "ERROR: One or more secrets are not set!"
-            echo "Please check:"
-            echo "1. Secrets are added in Settings → Secrets and variables → Actions"
-            echo "2. Secret names match exactly: OPENWEATHER_API_KEY and HOPSWORKS_API_KEY"
-            echo "3. This is not a forked repository (forks don't have access to secrets)"
-            exit 1
-          fi
-
-      - name: Run fetch_data to pull latest JSON
-        run: |
-          set -e
-          echo "Running fetch_data.py..."
+          echo "Running fetch_raw_data.py..."
           python fetch_data/fetch_raw_data.py
 
-      - name: Commit new JSON data
+      - name: Tabularize + upload to Hopsworks Feature Store
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add raw_data/*.json
-          git commit -m "Add new JSON data [skip ci]" || echo "No changes to commit"
-          git push
-
-      - name: Run parser + feature pipeline + upload
-        run: |
-          set -e
           echo "Running hopsworks_fs.py..."
           python features/hopsworks_fs.py
 
-      # - name: Commit archived files
-      #   run: |
-      #     git config user.name "github-actions"
-      #     git config user.email "actions@github.com"
-      #     git add raw_data/archive/*.json
-      #     git commit -m "Archive processed JSONs [skip ci]" || echo "No changes to commit"
-      #     git push
-      - name: Commit archived files
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          # Stage all changes (additions, deletions, modifications)
-          git add -A raw_data/
-          git commit -m "Archive processed JSONs [skip ci]" || echo "No changes to commit"
-          git push
-
-      - name: List data dir (debug)
-        if: failure() || always()
-        run: |
-          echo "Contents of raw_data/ and backfilled_data/ (for debugging)"
-          ls -la raw_data || true
-          ls -la backfilled_data || true
+      - name: Job complete
+        run: echo "✅ Hourly ingestion completed successfully."
