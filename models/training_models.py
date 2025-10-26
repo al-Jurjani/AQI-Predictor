@@ -5,6 +5,8 @@ import joblib
 import pandas as pd
 import numpy as np
 import os
+import tempfile
+import io
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, Ridge
@@ -33,6 +35,7 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
     print("-"*21)
     return {"Model": model, "Model Name": name, "RMSE": rmse, "MAE": mae, "R2": r2}
 
+# change threshold to equal the rmse of the best model in the mr in hopsworks
 def evaluate_model_performance(metrics, threshold_rmse=50):
     rmse = metrics.get("RMSE", None)
     if rmse is None:
@@ -93,73 +96,143 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
     # passed, eval_msg = evaluate_model_performance(metrics)
     # print(eval_msg)
 
-    # creating a  timestamp 
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_dir = f"models/run_{timestamp}"
-    os.makedirs(run_dir, exist_ok=True)
+    # # creating a  timestamp 
+    # timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    # # run_dir = f"models/run_{timestamp}"
+    # run_dir = f"models/run_{timestamp}"
+    # os.makedirs(run_dir, exist_ok=True)
 
+    # metrics_df = pd.DataFrame(results)
+    # metrics_csv_path = f"{run_dir}/baseline_metrics.csv"
+    # metrics_df.to_csv(metrics_csv_path, index=False)
+    # print(f"Training model metrics saved at: {run_dir}]/baseline_metrics.csv")
+
+    # print(f"Best model of this training batch: {best_model_name}") 
+    # best_model_path = f"{run_dir}/{best_model_name.replace(' ', '_').lower()}_model.pkl"
+    # joblib.dump(best_model, best_model_path)
+    # print(f"Best model file saved at: {best_model_path}")
+
+    # metadata = {
+    #     "best_model": best_model_name,
+    #     "artifact_path": best_model_path,
+    #     "timestamp": timestamp,
+    #     "metrics": {
+    #         "RMSE": float(best_rmse),
+    #         "MAE": float(metrics_df.loc[metrics_df['Model Name'] == best_model_name, 'MAE'].values[0]),
+    #         "R2": float(metrics_df.loc[metrics_df['Model Name'] == best_model_name, 'R2'].values[0])
+    #     },
+    #     "data_source": data_file_path
+    # }
+    # metadata_path = os.path.join(run_dir, "best_model_metadata.json")
+    # with open(metadata_path, "w") as f:
+    #     json.dump(metadata, f, indent=4)
+    # print(f"Best model meta data saved at: {metadata_path}")
+
+    # #SHAP Analysis
+    # summary_path, bar_path = generate_shap_analysis(best_model, X_train, run_dir)
+    # if summary_path and bar_path:
+    #     metadata["shap_summary_plot"] = summary_path
+    #     metadata["shap_bar_plot"] = bar_path
+    #     with open(metadata_path, "w") as f:
+    #         json.dump(metadata, f, indent=4)
+
+    # # will judge later if really needed, we already have the json file
+    # # model_card_path = os.path.join(run_dir, "model_card.txt")
+    # # create_model_card(metadata, model_card_path)
+    # # best_model = metrics_df.sort_values(by="RMSE").iloc[0]["Model"]
+     
+    # # Connect to Hopsworks
+    # load_dotenv()
+    # the_hopsworks_api_key = os.getenv("hopsworks_api_key")
+    # project = hopsworks.login(api_key_value=os.getenv("HOPSWORKS_API_KEY"))
+    # mr = project.get_model_registry()
+
+    # # Register model
+    # timestamp = datetime.datetime.now().strftime("%Y_%m_%d___%H_%M_%S")
+    # model_name = f"best_model___{timestamp}"
+    # model_dir = f"{run_dir}"  # path to your saved model pickle + metadata
+
+    # model = mr.python.create_model(
+    #     name=model_name,
+    #     metrics={
+    #         "rmse": best_rmse,
+    #         "mae": best_mae,
+    #         "r2": best_r2
+    #     },
+    #     description=f"AQI Forecast model ({best_model_name}) trained on latest dataset",
+    # )
+    # # Upload local files (model.pkl, metrics.json, shap plots, etc.)
+    # model.save(model_dir)
+    # print(f"✅ Registered model '{model_name}' in Hopsworks.")
+
+    # Create a temp directory (auto-deletes on container exit)
+    temp_dir = tempfile.mkdtemp()
+    print(f"Using temporary directory: {temp_dir}")
+
+    # Save metrics to memory
     metrics_df = pd.DataFrame(results)
-    metrics_csv_path = f"{run_dir}/baseline_metrics.csv"
+    metrics_csv_path = os.path.join(temp_dir, "baseline_metrics.csv")
     metrics_df.to_csv(metrics_csv_path, index=False)
-    print(f"Training model metrics saved at: {run_dir}]/baseline_metrics.csv")
+    print("Metrics saved to temp CSV.")
 
-    print(f"Best model of this training batch: {best_model_name}") 
-    best_model_path = f"{run_dir}/{best_model_name.replace(' ', '_').lower()}_model.pkl"
+    # Save best model pickle
+    best_model_path = os.path.join(temp_dir, f"{best_model_name.replace(' ', '_').lower()}_model.pkl")
     joblib.dump(best_model, best_model_path)
-    print(f"Best model file saved at: {best_model_path}")
+    print("Best model saved to temp pickle.")
 
+    # Save metadata JSON
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     metadata = {
         "best_model": best_model_name,
-        "artifact_path": best_model_path,
         "timestamp": timestamp,
         "metrics": {
             "RMSE": float(best_rmse),
-            "MAE": float(metrics_df.loc[metrics_df['Model Name'] == best_model_name, 'MAE'].values[0]),
-            "R2": float(metrics_df.loc[metrics_df['Model Name'] == best_model_name, 'R2'].values[0])
+            "MAE": float(best_mae),
+            "R2": float(best_r2),
         },
         "data_source": data_file_path
     }
-    metadata_path = os.path.join(run_dir, "best_model_metadata.json")
+    metadata_path = os.path.join(temp_dir, "best_model_metadata.json")
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=4)
-    print(f"Best model meta data saved at: {metadata_path}")
+    print("Metadata saved to temp JSON.")
 
-    #SHAP Analysis
-    summary_path, bar_path = generate_shap_analysis(best_model, X_train, run_dir)
+    # SHAP Analysis (still saves inside temp dir)
+    summary_path, bar_path = generate_shap_analysis(best_model, X_train, temp_dir)
     if summary_path and bar_path:
         metadata["shap_summary_plot"] = summary_path
         metadata["shap_bar_plot"] = bar_path
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=4)
 
-    # will judge later if really needed, we already have the json file
-    # model_card_path = os.path.join(run_dir, "model_card.txt")
-    # create_model_card(metadata, model_card_path)
-    # best_model = metrics_df.sort_values(by="RMSE").iloc[0]["Model"]
-     
-    # Connect to Hopsworks
+    # --- Upload directly to Hopsworks ---
     load_dotenv()
-    the_hopsworks_api_key = os.getenv("hopsworks_api_key")
     project = hopsworks.login(api_key_value=os.getenv("HOPSWORKS_API_KEY"))
     mr = project.get_model_registry()
 
-    # Register model
-    timestamp = datetime.datetime.now().strftime("%Y_%m_%d___%H_%M_%S")
-    model_name = f"best_model___{timestamp}"
-    model_dir = f"{run_dir}"  # path to your saved model pickle + metadata
+    timestamp_label = datetime.datetime.now().strftime("%Y_%m_%d___%H_%M_%S")
+    model_name = f"aqi_model___{timestamp_label}"
 
     model = mr.python.create_model(
         name=model_name,
         metrics={
             "rmse": best_rmse,
             "mae": best_mae,
-            "r2": best_r2
+            "r2": best_r2,
         },
         description=f"AQI Forecast model ({best_model_name}) trained on latest dataset",
     )
-    # Upload local files (model.pkl, metrics.json, shap plots, etc.)
-    model.save(model_dir)
-    print(f"✅ Registered model '{model_name}' in Hopsworks.")
+
+    model.save(temp_dir)
+    print(f"✅ Model '{model_name}' uploaded directly to Hopsworks (no local files retained).")
+
+    if evaluate_model_performance == True:
+        model.set_tag("production", True)
+        print("This version is tagged as production.")
+    else:
+        model.set_tag("production", False)
+        print("This version is NOT tagged as production (better model required).")
+
 
     return best_model, best_model_name, metrics_df
 
