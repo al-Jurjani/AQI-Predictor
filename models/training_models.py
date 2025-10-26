@@ -1,5 +1,6 @@
 import datetime
 import json
+from dotenv import load_dotenv
 import joblib
 import pandas as pd
 import numpy as np
@@ -14,15 +15,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from model_card_generator import create_model_card
 from shap_analysis import generate_shap_analysis
 
-# data_file_path = "training_data/training_dataset.csv"
-# output_path = "models/baseline_metrics.csv"
+import hopsworks
 
-# df = pd.read_csv(data_file_path)
-# X = df.drop(columns=["ow_aqi_index", "timestamp_utc"], errors="ignore")
-# y = df["ow_aqi_index"]
-
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=21)
-# print(f"Train shape: {X_train.shape}, Test shape: {X_test.shape}")
 
 # evaluating model function
 def evaluate_model(name, model, X_train, X_test, y_train, y_test):
@@ -49,21 +43,6 @@ def evaluate_model_performance(metrics, threshold_rmse=50):
     else:
         return False, f"Model failed: RMSE={rmse:.2f} > {threshold_rmse}"
 
-
-# results = []
-
-# models = {
-#     "Linear Regression": LinearRegression(),
-#     "Ridge Regression": Ridge(alpha=1.0),
-#     "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
-# }
-# for name, model in models.items():
-#     result = evaluate_model(name, model, X_train, X_test, y_train, y_test)
-#     results.append(result)
-
-# metrics_df = pd.DataFrame(results)
-# # saving as a csv
-# metrics_df.to_csv(output_path, index = False)
 
 # turning this into a single function to be used by automated_training.py
 def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=21):
@@ -104,6 +83,8 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
         result = evaluate_model(name, model, X_train, X_test, y_train, y_test)
         if result["RMSE"] < best_rmse:
             best_rmse = result["RMSE"]
+            best_mae = result["MAE"]
+            best_r2 = result["R2"]
             best_model_name = result["Model Name"]
             best_model = result["Model"]
         results.append(result)
@@ -156,6 +137,30 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
     # create_model_card(metadata, model_card_path)
     # best_model = metrics_df.sort_values(by="RMSE").iloc[0]["Model"]
      
+    # Connect to Hopsworks
+    load_dotenv()
+    the_hopsworks_api_key = os.getenv("hopsworks_api_key")
+    project = hopsworks.login(api_key_value=os.getenv("HOPSWORKS_API_KEY"))
+    mr = project.get_model_registry()
+
+    # Register model
+    timestamp = datetime.datetime.now().strftime("%Y_%m_%d___%H_%M_%S")
+    model_name = f"best_model___{timestamp}"
+    model_dir = f"{run_dir}"  # path to your saved model pickle + metadata
+
+    model = mr.python.create_model(
+        name=model_name,
+        metrics={
+            "rmse": best_rmse,
+            "mae": best_mae,
+            "r2": best_r2
+        },
+        description=f"AQI Forecast model ({best_model_name}) trained on latest dataset",
+    )
+    # Upload local files (model.pkl, metrics.json, shap plots, etc.)
+    model.save(model_dir)
+    print(f"✅ Registered model '{model_name}' in Hopsworks.")
+
     return best_model, best_model_name, metrics_df
 
 # This block allows the script to be run directly
