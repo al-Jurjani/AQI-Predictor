@@ -2,13 +2,18 @@ import os
 import requests
 import pandas as pd
 import json
+import datetime
 from dotenv import load_dotenv
+from azure.storage.blob import BlobServiceClient
 
 load_dotenv()
 
 # loading the API key and target city
 ow_api_key = os.getenv("OPENWEATHER_API_KEY")
 target_city = os.getenv("TARGET_CITY", "Karachi")
+connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+container_name = "aqi-data"
 
 # the coordinates of Karachi
 lat, lon = 24.8607, 67.0011
@@ -40,12 +45,20 @@ def fetch_aqi_index(city: str):
     return {"city": city, "ow_aqi_index": ow_aqi_index}
 
 def save_json(data:dict, prefix: str = "raw_data"):
-    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"raw_data/{prefix}___{timestamp}.json"
-    with open(filename, "w") as f:
-        json.dump(data, f, indent=4)
-    print(f"Data saved to {filename}")
-    return filename
+    # timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+    # filename = f"raw_data/{prefix}___{timestamp}.json"
+    # with open(filename, "w") as f:
+    #     json.dump(data, f, indent=4)
+    # print(f"Data saved to {filename}")
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    blob_path = f"raw_data/{prefix}___{timestamp}.json"
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_path)
+    
+    blob_client.upload_blob(json.dumps(data), overwrite=True)
+    print(f"✅ Uploaded {blob_path} to Azure blob storage.")
+
+    return blob_path
 
 
 # main
