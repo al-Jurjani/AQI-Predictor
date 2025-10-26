@@ -11,7 +11,7 @@ import io
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.ensemble import RandomForestRegressor
-import xgboost
+# import xgboost
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 from model_card_generator import create_model_card
