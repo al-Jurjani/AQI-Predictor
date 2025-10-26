@@ -6,3 +6,4 @@ shap
 python-dotenv
 hopsworks
 hopsworks[python]
+azure-storage-blob
