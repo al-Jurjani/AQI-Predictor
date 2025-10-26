@@ -1,9 +1,8 @@
 import json
 import pandas as pd
 
-def tabularize_raw_data(json_filepath: str) -> pd.DataFrame:
-    with open(json_filepath, "r") as file:
-        data = json.load(file)
+def tabularize_raw_data(json_input: dict) -> pd.DataFrame:
+        data = json_input
 
         # extracting the city and timestamp
         city = data.get("city")
@@ -19,7 +18,7 @@ def tabularize_raw_data(json_filepath: str) -> pd.DataFrame:
         # getting pollution data
         pollution = data.get("pollution", {})
         pollution_components = pollution.get("list", [{}])[0].get("components", {})
-        ow_aqi_index = data.get("ow_aqi_index").get("ow_aqi_index")
+        ow_aqi_index = data.get("ow_aqi_index").get("ow_aqi_index") # type: ignore
 
         # creating a pd row
         row = {
