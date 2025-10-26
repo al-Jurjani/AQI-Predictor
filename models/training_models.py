@@ -226,11 +226,13 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
     model.save(temp_dir)
     print(f"✅ Model '{model_name}' uploaded directly to Hopsworks (no local files retained).")
 
+    model_entity = mr.get_model(model.name)
+
     if evaluate_model_performance == True:
-        model.set_tag("production", True)
+        model_entity.set_tag("production", True)
         print("This version is tagged as production.")
     else:
-        model.set_tag("production", False)
+        model_entity.set_tag("production", False)
         print("This version is NOT tagged as production (better model required).")
 
 
