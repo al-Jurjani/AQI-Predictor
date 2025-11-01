@@ -8,3 +8,8 @@ hopsworks
 hopsworks[python]
 azure-storage-blob
 matplotlib
+flake8
+autopep8
+black
+ruff
+pre-commit

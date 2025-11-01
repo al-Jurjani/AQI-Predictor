@@ -1,5 +1,6 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+
 
 def add_rolling_avgs(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -7,12 +8,28 @@ def add_rolling_avgs(df: pd.DataFrame) -> pd.DataFrame:
     df = df.set_index("timestamp_utc")  # optional but cleaner
     df = df.sort_values("timestamp_utc")
 
-    for col in ["co", "no", "no2", "o3","so2", "pm2_5", "pm10", "nh3", "temp", "humidity", "pressure", "wind_speed", "wind_deg", "wind_gust"]:
+    for col in [
+        "co",
+        "no",
+        "no2",
+        "o3",
+        "so2",
+        "pm2_5",
+        "pm10",
+        "nh3",
+        "temp",
+        "humidity",
+        "pressure",
+        "wind_speed",
+        "wind_deg",
+        "wind_gust",
+    ]:
         df[f"{col}_rolling_avg_4h"] = df[col].rolling("4h").mean()
         df[f"{col}_rolling_avg_24h"] = df[col].rolling("24h").mean()
         df[f"{col}_rolling_avg_7d"] = df[col].rolling("7d").mean()
         df[f"{col}_rolling_avg_30d"] = df[col].rolling("30d").mean()
     return df
+
 
 def add_aqi_deltas(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -24,6 +41,7 @@ def add_aqi_deltas(df: pd.DataFrame) -> pd.DataFrame:
     df["aqi_pct_change_24h"] = df["ow_aqi_index"].pct_change(periods=24)
     return df
 
+
 def add_pollutant_ratios(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["pm_ratio"] = df["pm2_5"] / (df["pm10"] + 1e-6)
@@ -33,11 +51,13 @@ def add_pollutant_ratios(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+
 def add_wind_dispersion_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    for col in ["co", "no", "no2", "o3","so2", "pm2_5", "pm10", "nh3"]:
+    for col in ["co", "no", "no2", "o3", "so2", "pm2_5", "pm10", "nh3"]:
         df[f"{col}_wind_disp"] = df[col] / (df["wind_speed"] + 1e-6)
     return df
+
 
 def add_cyclical_time_features(df: pd.DataFrame) -> pd.DataFrame:
     """Converts hour/day/month into cyclical (sin/cos) for ML models."""
@@ -53,7 +73,10 @@ def add_cyclical_time_features(df: pd.DataFrame) -> pd.DataFrame:
         df["month_cos"] = np.cos(2 * np.pi * df["month"] / 12)
     return df
 
+
 # main function to add all derived features
+
+
 def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
     df = add_rolling_avgs(df)
     df = add_aqi_deltas(df)

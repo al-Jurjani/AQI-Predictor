@@ -1,11 +1,14 @@
-import shap
-import matplotlib.pyplot as plt
 import os
 
+import matplotlib.pyplot as plt
+import shap
+
 # this generates SHAP explainability visualizations for the best model of each training run
+
+
 def generate_shap_analysis(best_model, X_train, run_dir):
     os.makedirs(run_dir, exist_ok=True)
-    
+
     print("Generating SHAP explainability plots...")
     try:
         # SHAP requires background data

@@ -1,18 +1,22 @@
-import os
 import json
+import os
 import random
 from datetime import datetime, timedelta
 
 # ----------------------------
 # CONFIGURATION
 # ----------------------------
-SOURCE_FILE = "raw_data/karachi_weather_data___20251015_161703.json"  # your original JSON
+SOURCE_FILE = (
+    "raw_data/karachi_weather_data___20251015_161703.json"  # your original JSON
+)
 OUTPUT_DIR = "backfilled_data"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ----------------------------
 # 1️⃣ Perturbation helpers
 # ----------------------------
+
+
 def perturb_value(v, scale=0.1, min_val=0, max_val=None):
     """Perturb a numeric value slightly."""
     if not isinstance(v, (int, float)):
@@ -49,7 +53,9 @@ def perturb_weather(weather, temp_scale=0.02, humidity_scale=0.1, wind_scale=0.1
     if "temp_max" in main:
         main["temp_max"] = perturb_value(main["temp_max"], temp_scale)
     if "humidity" in main:
-        main["humidity"] = perturb_value(main["humidity"], humidity_scale, min_val=0, max_val=100)
+        main["humidity"] = perturb_value(
+            main["humidity"], humidity_scale, min_val=0, max_val=100
+        )
 
     if "speed" in wind:
         wind["speed"] = perturb_value(wind["speed"], wind_scale, min_val=0)
@@ -82,7 +88,8 @@ def generate_backfill(source_file, days=7):
 
         # shift internal timestamps
         pollution_sim["list"][0]["dt"] = int(
-            datetime.utcfromtimestamp(pollution_sim["list"][0]["dt"]).timestamp() - i * 86400
+            datetime.utcfromtimestamp(pollution_sim["list"][0]["dt"]).timestamp()
+            - i * 86400
         )
         weather_sim["dt"] = int(
             datetime.utcfromtimestamp(weather_sim["dt"]).timestamp() - i * 86400
@@ -97,7 +104,9 @@ def generate_backfill(source_file, days=7):
             "ow_aqi_index": ow_aqi_sim,
         }
 
-        out_name = f"karachi_backfilled_weather_data__{backfill_date.strftime('%Y%m%d')}.json"
+        out_name = (
+            f"karachi_backfilled_weather_data__{backfill_date.strftime('%Y%m%d')}.json"
+        )
         out_path = os.path.join(OUTPUT_DIR, out_name)
 
         with open(out_path, "w") as out:
