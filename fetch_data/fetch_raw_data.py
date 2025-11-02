@@ -36,9 +36,7 @@ def fetch_pollution_data(city: str):
     if not ow_api_key:
         raise ValueError("OPENWEATHER_API_KEY environment variable not set or empty!")
     coords = city_coords[city]
-    url = f"http://api.openweathermap.org/data/2.5/air_pollution?lat={
-        coords['lat']}&lon={
-        coords['lon']}&appid={ow_api_key}"
+    url = f"http://api.openweathermap.org/data/2.5/air_pollution?lat={coords['lat']}&lon={coords['lon']}&appid={ow_api_key}"
     r = requests.get(url)
     r.raise_for_status()  # for error handling
     return r.json()

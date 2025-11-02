@@ -178,12 +178,9 @@ def train_and_evaluate_models(data_file_path, test_size=0.2, split_random_state=
     print("Metrics saved to temp CSV.")
 
     # Save best model pickle
-    best_model_path = os.path.join(
-        temp_dir,
-        f"{
-            best_model_name.replace(
-                ' ', '_').lower()}_model.pkl",
-    )
+    # fmt: off
+    best_model_path = os.path.join(temp_dir, f"{best_model_name.replace(' ', '_').lower()}_model.pkl")
+    # fmt: on
     joblib.dump(best_model, best_model_path)
     print("Best model saved to temp pickle.")
 
