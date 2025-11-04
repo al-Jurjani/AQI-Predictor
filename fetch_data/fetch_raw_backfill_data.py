@@ -1,11 +1,9 @@
-import json
 import os
 import sys
 from typing import Optional
 
 import hopsworks
 import pandas as pd
-from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -13,6 +11,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from features.derived_features import add_derived_features
 from features.schema_validator import validate_schema
 from features.time_based_features import add_time_based_features
+
+load_dotenv()
+the_hopsworks_api_key = os.getenv("hopsworks_api_key")
 
 WEATHER_CSV_PATH = "fetch_data/karachi_complete_weather_data.csv"  # Open-Meteo CSV
 POLLUTION_CSV_PATH = "fetch_data/karachi_complete_air_quality_data.xlsx"  # Kaggle CSV
@@ -22,54 +23,10 @@ CITY = "Karachi"
 LAT = 24.9056
 LON = 67.0822
 
-# Backfill date range (inclusive). Use ISO strings 'YYYY-MM-DD'
-START_DATE = "2021-08-24"
-END_DATE = "2024-11-30"
-
-# Upload target
-AZURE_CONTAINER = "aqi-data"
-AZURE_PREFIX = "backfill_data/"  # will place files under this virtual folder
-
 # Options
 CONVERT_TEMP_TO_KELVIN = (
     True  # set True if you want temps in Kelvin (example JSON looked Kelvin)
 )
-UPLOAD_BATCH_SIZE = 200  # progress commit chunk size for logging (not required)
-SAVE_LOCAL_COPY = (
-    False  # if True, temporarily saves JSONs to ./tmp_backfill before upload
-)
-
-# Name template for JSONs
-JSON_NAME_TEMPLATE = "karachi_backfilled_weather_data__{ts}.json"  # ts -> YYYYmmdd_HH
-
-
-load_dotenv()  # loads AZURE_STORAGE_CONNECTION_STRING if present in .env
-AZURE_CONN_STR = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-if not AZURE_CONN_STR:
-    raise RuntimeError(
-        "Please set AZURE_STORAGE_CONNECTION_STRING in environment or .env"
-    )
-
-blob_service_client = BlobServiceClient.from_connection_string(AZURE_CONN_STR)
-container_client = blob_service_client.get_container_client(AZURE_CONTAINER)
-
-
-# Utility: safe numeric
-def _safe_float(x):
-    try:
-        if pd.isna(x):
-            return None
-        return float(x)
-    except Exception:
-        return None
-
-
-def _to_unix(dt: pd.Timestamp) -> int:
-    return (
-        int(dt.tz_convert("UTC").timestamp())
-        if dt.tzinfo is not None
-        else int(pd.Timestamp(dt).timestamp())
-    )
 
 
 # AQI mapping helper (if kaggle already uses 1-5, this returns same)
@@ -166,121 +123,6 @@ def merge_weather_pollution(df_weather: pd.DataFrame, df_poll: pd.DataFrame):
         df_weather, df_poll, on="timestamp_utc", how="inner", suffixes=("_w", "_p")
     )
     return df_merged
-
-
-def build_json_for_row(
-    row: pd.Series,
-    city=CITY,
-    lat=LAT,
-    lon=LON,
-    convert_temp_to_kelvin=CONVERT_TEMP_TO_KELVIN,
-):
-    ts = pd.to_datetime(row["timestamp_utc"])
-    # temperature handling
-    temp_c = _safe_float(row.get("temp"))
-    if temp_c is None:
-        temp_out = None
-    else:
-        temp_out = (
-            float(temp_c + 273.15) if convert_temp_to_kelvin else float(temp_c)
-        )  # Kelvin or Celsius
-
-    feels_like = _safe_float(row.get("feels_like"))
-    if feels_like is not None and convert_temp_to_kelvin:
-        feels_like = float(feels_like + 273.15)
-
-    pressure = _safe_float(row.get("pressure"))
-    humidity = _safe_float(row.get("humidity"))
-    wind_speed = _safe_float(row.get("wind_speed"))
-    wind_deg = _safe_float(row.get("wind_direction"))
-    wind_gust = _safe_float(row.get("wind_gusts"))
-
-    # Pollutants:
-    co = _safe_float(row.get("co"))
-    no = _safe_float(row.get("no"))
-    no2 = _safe_float(row.get("no2"))
-    o3 = _safe_float(row.get("o3"))
-    so2 = _safe_float(row.get("so2"))
-    pm2_5 = _safe_float(row.get("pm2_5"))
-    pm10 = _safe_float(row.get("pm10"))
-    nh3 = _safe_float(row.get("nh3"))
-    main_aqi = map_main_aqi_to_ow_scale(row.get("main_aqi"))
-
-    # Build weather object (subset of your example JSON)
-    weather_obj = {
-        "coord": {"lon": float(lon), "lat": float(lat)},
-        "weather": [
-            {
-                "id": 777,
-                "main": "Haze",
-                "description": "does_not_matter",
-                "icon": "does_not_matter",
-            }
-        ],
-        "base": "stations",
-        "main": {
-            "temp": temp_out,
-            "feels_like": feels_like,
-            "temp_min": temp_out,
-            "temp_max": temp_out,
-            "pressure": pressure,
-            "humidity": humidity,
-            "sea_level": (
-                _safe_float(row.get("pressure_msl"))
-                if not pd.isna(row.get("pressure_msl"))
-                else pressure
-            ),
-            "grnd_level": (pressure - 3),  # type: ignore
-        },
-        "visibility": None,
-        "wind": {"speed": wind_speed, "deg": wind_deg, "gust": wind_gust},
-        "clouds": {"all": 0},
-        "dt": _to_unix(ts),
-        "sys": {"country": "PK", "sunrise": 1759368236, "sunset": 1759411080},
-        "timezone": 18000,
-        "id": None,
-        "name": city,
-        "cod": 200,
-    }
-
-    pollution_obj = {
-        "coord": {"lon": float(lon), "lat": float(lat)},
-        "list": [
-            {
-                "main": {"aqi": main_aqi},
-                "components": {
-                    "co": co,
-                    "no": no,
-                    "no2": no2,
-                    "o3": o3,
-                    "so2": so2,
-                    "pm2_5": pm2_5,
-                    "pm10": pm10,
-                    "nh3": nh3,
-                },
-                "dt": _to_unix(ts),
-            }
-        ],
-    }
-
-    out = {
-        "timestamp": ts.tz_localize(None).isoformat(),
-        "city": city,
-        "weather": weather_obj,
-        "pollution": pollution_obj,
-        "ow_aqi_index": {"city": city, "ow_aqi_index": main_aqi},
-    }
-    return out
-
-
-def save_json(data: dict, prefix: str = "raw_backfilled_data"):
-    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{prefix}___{timestamp}.json"
-    with open(filename, "w") as f:
-        json.dump(data, f, indent=4)
-    print(f"Data saved to {filename}")
-
-    return filename
 
 
 if __name__ == "__main__":
@@ -381,7 +223,7 @@ if __name__ == "__main__":
 
     # Uploading to hopsworks feature store
     print("Uploading the backfill data to hopsworks!")
-    the_hopsworks_api_key = os.getenv("HOPSWORKS_API_KEY")
+    # the_hopsworks_api_key = os.getenv("HOPSWORKS_API_KEY")
     if not the_hopsworks_api_key:
         raise ValueError("the_hopsworks_api_key environment variable not set or empty!")
     if the_hopsworks_api_key:
@@ -409,6 +251,14 @@ if __name__ == "__main__":
         )
 
     if feature_group is not None:
+        # Make sure dtype is correct
+        df_features["timestamp_utc"] = pd.to_datetime(
+            df_features["timestamp_utc"], utc=True
+        )
+        df_features["timestamp_key"] = df_features["timestamp_utc"].astype(
+            str
+        )  # for pk of hopsworks fs
+
         # inserting in the feature store
         print("Inserting the dataframe into the feature group...")
         feature_group.insert(df_features, write_options={"wait_for_job": True})
