@@ -1,7 +1,9 @@
 import os
+from datetime import timedelta
 
 import hopsworks
 import joblib
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -11,7 +13,7 @@ from dotenv import load_dotenv
 # PAGE CONFIG
 # -----------------------------
 st.set_page_config(
-    page_title="Pearls AQI Predictor",
+    page_title="JurjaniX10Pearls AQI Predictor - Karachi",
     page_icon="🌤️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -20,30 +22,35 @@ st.set_page_config(
 # -----------------------------
 # THEME CONFIGURATION
 # -----------------------------
-if "theme" not in st.session_state:
-    st.session_state.theme = "Light"
+# if "theme" not in st.session_state:
+#     st.session_state.theme = "Light"
 
-with st.sidebar:
-    st.title("⚙️ Settings")
-    theme_toggle = st.radio(
-        "Theme",
-        options=["Light", "Dark"],
-        index=0 if st.session_state.theme == "Light" else 1,
-        horizontal=True,
-    )
-    st.session_state.theme = theme_toggle
+# with st.sidebar:
+#     st.title("⚙️ Settings")
+#     theme_toggle = st.radio(
+#         "Theme",
+#         options=["Light", "Dark"],
+#         index=0 if st.session_state.theme == "Light" else 1,
+#         horizontal=True,
+#     )
+#     st.session_state.theme = theme_toggle
 
-# Apply theme
-if st.session_state.theme == "Dark":
-    bg_color = "#0e1117"
-    text_color = "#fafafa"
-    card_bg = "#262730"
-    plot_template = "plotly_dark"
-else:
-    bg_color = "#ffffff"
-    text_color = "#31333F"
-    card_bg = "#f0f2f6"
-    plot_template = "plotly_white"
+# # Apply theme
+# if st.session_state.theme == "Dark":
+#     bg_color = "#0e1117"
+#     text_color = "#fafafa"
+#     card_bg = "#262730"
+#     plot_template = "plotly_dark"
+# else:
+#     bg_color = "#ffffff"
+#     text_color = "#31333F"
+#     card_bg = "#f0f2f6"
+#     plot_template = "plotly_white"
+
+bg_color = "#0e1117"
+text_color = "#fafafa"
+card_bg = "#262730"
+plot_template = "plotly_dark"
 
 st.markdown(
     f"""
@@ -80,7 +87,7 @@ st.markdown(
 # -----------------------------
 # HOPSWORKS CONNECTION
 # -----------------------------
-st.sidebar.info("🔄 Loading data...")
+# st.sidebar.info("🔄 Loading data...")
 
 try:
     load_dotenv()
@@ -96,20 +103,20 @@ try:
     fs = project.get_feature_store()
 
     # Load all model versions
-    st.sidebar.info("📦 Loading best model...")
+    # st.sidebar.info("📦 Loading best model...")
 
     EVALUATION_METRIC = "rmse"  # or r2, rmse
     SORT_METRICS_BY = "min"  # your sorting criteria
     best_model = mr.get_best_model("best_aqi_model", EVALUATION_METRIC, SORT_METRICS_BY)
 
-    st.sidebar.success(f"✅ Best Model: v{best_model.version}")
+    st.sidebar.success(f"✅ Best Model Version: v{best_model.version}")
     st.sidebar.metric("RMSE", f"{best_model.training_metrics.get('rmse', 'N/A')}")
-    st.sidebar.metric("R²", f"{best_model.training_metrics.get('r2', 'N/A')}")
+    # st.sidebar.metric("R²", f"{best_model.training_metrics.get('r2', 'N/A')}")
 
-    st.sidebar.info("📦 Best model loaded!")
+    st.sidebar.info("Best model loaded!")
 
     # Download model
-    st.sidebar.info("⬇️ Downloading model...")
+    # st.sidebar.info("⬇️ Downloading model...")
     model_dir = best_model.download()
 
     # Find pickle file
@@ -124,7 +131,7 @@ try:
     st.sidebar.success(f"✅ Loaded: {pkl_files[0]}")
 
     # Load feature data
-    st.sidebar.info("📊 Loading feature data...")
+    # st.sidebar.info("📊 Loading feature data...")
     fg = fs.get_feature_group(name="air_quality_data", version=1)
     df = fg.read()
 
@@ -155,13 +162,37 @@ df[time_col] = pd.to_datetime(df[time_col])
 # Identify feature columns
 # exclude_cols = [time_col, 'ow_aqi_index', 'aqi_delta_24h', 'aqi_delta_3h',
 #                 'aqi_pct_change_24h', 'aqi_pct_change_3h']
+# exclude_cols = [
+#     "ow_aqi_index",
+#     "city",
+#     "timestamp",
+#     "timestamp_utc",
+#     time_col,
+#     "timestamp_key",
+# ]
 exclude_cols = [
     "ow_aqi_index",
-    "city",
-    "timestamp",
     "timestamp_utc",
-    time_col,
+    "city",
     "timestamp_key",
+    "timestamp",
+    time_col,
+    "temp_feels_like",
+    "co_no2_ratio",
+    "temp_rolling_avg_4h",
+    "temp_rolling_avg_30d",
+    "temp_rolling_avg_7d",
+    "temp_rolling_avg_24h",
+    "so2_no2_ratio",
+    "temp",
+    "so2_wind_disp",
+    "co_wind_disp",
+    "nh3_wind_disp",
+    "pm2_5_wind_disp",
+    "no2_wind_disp",
+    "no_wind_disp",
+    "pm10_wind_disp",
+    "o3_wind_disp",
 ]
 # feature_cols = [c for c in df.columns if c not in exclude_cols and df[c].dtype in ['int64', 'float64']]
 feature_cols = [c for c in df.columns if c not in exclude_cols]
@@ -179,15 +210,75 @@ def predict_current(model, df, feature_cols):
     return model.predict(latest_row)[0]
 
 
+# def forecast_future(model, df, feature_cols, hours=[24, 48, 72]):
+#     """Forecast future AQI values"""
+#     forecasts = {}
+#     latest_features = df.iloc[-1:][feature_cols].copy()
+
+#     for h in hours:
+#         # Simple approach: use latest features for prediction
+#         pred = model.predict(latest_features)[0]
+#         forecasts[h] = pred
+
+#     return forecasts
+
+
 def forecast_future(model, df, feature_cols, hours=[24, 48, 72]):
-    """Forecast future AQI values"""
     forecasts = {}
-    latest_features = df.iloc[-1:][feature_cols].copy()
+    current_features = df.iloc[-1][feature_cols].copy()
+    latest_timestamp = df[time_col].iloc[-1]
+
+    previous_aqi = df["ow_aqi_index"].iloc[-1]  # Start with last known AQI
 
     for h in hours:
-        # Simple approach: use latest features for prediction
-        pred = model.predict(latest_features)[0]
+        future_features = current_features.copy()
+        future_time = latest_timestamp + timedelta(hours=h)
+
+        # Update time features
+        future_features["hour"] = future_time.hour
+        future_features["day_of_week"] = future_time.dayofweek
+        future_features["day_of_month"] = future_time.day
+        future_features["month"] = future_time.month
+
+        # Update cyclical features
+        future_features["hour_sin"] = np.sin(2 * np.pi * future_time.hour / 24)
+        future_features["hour_cos"] = np.cos(2 * np.pi * future_time.hour / 24)
+        future_features["day_of_week_sin"] = np.sin(
+            2 * np.pi * future_time.dayofweek / 7
+        )
+        future_features["day_of_week_cos"] = np.cos(
+            2 * np.pi * future_time.dayofweek / 7
+        )
+        future_features["month_sin"] = np.sin(2 * np.pi * (future_time.month - 1) / 12)
+        future_features["month_cos"] = np.cos(2 * np.pi * (future_time.month - 1) / 12)
+
+        # KEY: Update AQI-based features using previous prediction
+        if "aqi_delta_3h" in future_features.index:
+            future_features["aqi_delta_3h"] = previous_aqi - df["ow_aqi_index"].iloc[-2]
+        if "aqi_delta_24h" in future_features.index:
+            future_features["aqi_delta_24h"] = (
+                previous_aqi - df["ow_aqi_index"].iloc[-24] if len(df) > 24 else 0
+            )
+        if "aqi_pct_change_3h" in future_features.index:
+            old_val = df["ow_aqi_index"].iloc[-2]
+            future_features["aqi_pct_change_3h"] = (
+                ((previous_aqi - old_val) / old_val * 100) if old_val != 0 else 0
+            )
+        if "aqi_pct_change_24h" in future_features.index:
+            old_val = df["ow_aqi_index"].iloc[-24] if len(df) > 24 else previous_aqi
+            future_features["aqi_pct_change_24h"] = (
+                ((previous_aqi - old_val) / old_val * 100) if old_val != 0 else 0
+            )
+
+        # Make prediction
+        pred = model.predict(future_features.values.reshape(1, -1))[0]
         forecasts[h] = pred
+
+        # Use this prediction for the next iteration
+        previous_aqi = pred
+        current_features = future_features  # Carry forward updated features
+
+        print(f"+{h}h: pred={pred:.2f}, used previous_aqi={previous_aqi:.2f}")
 
     return forecasts
 
@@ -233,7 +324,7 @@ with col1:
         f"""
         <div class="metric-card">
             <div class="metric-label">Current AQI</div>
-            <div class="metric-value" style="color: {color};">{current_aqi:.0f}</div>
+            <div class="metric-value" style="color: {color};">{current_aqi:.3f}</div>
             <div class="metric-label">{category}</div>
         </div>
     """,
@@ -246,7 +337,7 @@ with col2:
         f"""
         <div class="metric-card">
             <div class="metric-label">Tomorrow (+24h)</div>
-            <div class="metric-value" style="color: {color};">{future_forecasts[24]:.0f}</div>
+            <div class="metric-value" style="color: {color};">{future_forecasts[24]:.3f}</div>
             <div class="metric-label">{category}</div>
         </div>
     """,
@@ -259,7 +350,7 @@ with col3:
         f"""
         <div class="metric-card">
             <div class="metric-label">Day 2 (+48h)</div>
-            <div class="metric-value" style="color: {color};">{future_forecasts[48]:.0f}</div>
+            <div class="metric-value" style="color: {color};">{future_forecasts[48]:.3f}</div>
             <div class="metric-label">{category}</div>
         </div>
     """,
@@ -272,7 +363,7 @@ with col4:
         f"""
         <div class="metric-card">
             <div class="metric-label">Day 3 (+72h)</div>
-            <div class="metric-value" style="color: {color};">{future_forecasts[72]:.0f}</div>
+            <div class="metric-value" style="color: {color};">{future_forecasts[72]:.3f}</div>
             <div class="metric-label">{category}</div>
         </div>
     """,
@@ -306,7 +397,7 @@ fig1.add_hline(
     y=current_aqi,
     line_dash="dash",
     line_color="orange",
-    annotation_text=f"Current Prediction: {current_aqi:.0f}",
+    annotation_text=f"Current Prediction: {current_aqi:.2f}",
     annotation_position="top right",
 )
 
@@ -321,87 +412,87 @@ fig1.update_layout(
 st.plotly_chart(fig1, use_container_width=True)
 
 # -----------------------------
-# 2. FORECAST BAR CHART
-st.subheader("🔮 3-Day Forecast Comparison")
+# # 2. FORECAST BAR CHART
+# st.subheader("🔮 3-Day Forecast Comparison")
 
-forecast_df = pd.DataFrame(
-    {
-        "Period": ["Current", "Day 1", "Day 2", "Day 3"],
-        "AQI": [
-            current_aqi,
-            future_forecasts[24],
-            future_forecasts[48],
-            future_forecasts[72],
-        ],
-        "Color": [
-            get_aqi_category(v)[1]
-            for v in [
-                current_aqi,
-                future_forecasts[24],
-                future_forecasts[48],
-                future_forecasts[72],
-            ]
-        ],
-    }
-)
+# forecast_df = pd.DataFrame(
+#     {
+#         "Period": ["Current", "Day 1", "Day 2", "Day 3"],
+#         "AQI": [
+#             current_aqi,
+#             future_forecasts[24],
+#             future_forecasts[48],
+#             future_forecasts[72],
+#         ],
+#         "Color": [
+#             get_aqi_category(v)[1]
+#             for v in [
+#                 current_aqi,
+#                 future_forecasts[24],
+#                 future_forecasts[48],
+#                 future_forecasts[72],
+#             ]
+#         ],
+#     }
+# )
 
-fig2 = go.Figure(
-    data=[
-        go.Bar(
-            x=forecast_df["Period"],
-            y=forecast_df["AQI"],
-            marker_color=forecast_df["Color"],
-            text=forecast_df["AQI"].round(0),
-            textposition="outside",
-        )
-    ]
-)
+# fig2 = go.Figure(
+#     data=[
+#         go.Bar(
+#             x=forecast_df["Period"],
+#             y=forecast_df["AQI"],
+#             marker_color=forecast_df["Color"],
+#             text=forecast_df["AQI"].round(0),
+#             textposition="outside",
+#         )
+#     ]
+# )
 
-fig2.update_layout(
-    template=plot_template,
-    yaxis_title="AQI Value",
-    xaxis_title="Time Period",
-    height=400,
-    showlegend=False,
-)
+# fig2.update_layout(
+#     template=plot_template,
+#     yaxis_title="AQI Value",
+#     xaxis_title="Time Period",
+#     height=400,
+#     showlegend=False,
+# )
 
-st.plotly_chart(fig2, use_container_width=True)
+# st.plotly_chart(fig2, use_container_width=True)
 
 # -----------------------------
-# 3. FEATURE IMPORTANCE / CORRELATIONS
-st.subheader("🔍 Top Factors Influencing AQI")
+# # 3. FEATURE IMPORTANCE / CORRELATIONS
+# st.subheader("🔍 Top Factors Influencing AQI")
 
-# Calculate correlations with AQI
-correlations = (
-    df[feature_cols + [aqi_col]]
-    .corr()[aqi_col]
-    .drop(aqi_col)
-    .sort_values(ascending=False)
-)
-top_10_corr = correlations.head(10)
+# # Calculate correlations with AQI
+# correlations = (
+#     df[feature_cols + [aqi_col]]
+#     .corr()[aqi_col]
+#     .drop(aqi_col)
+#     .sort_values(ascending=False)
+# )
+# top_10_corr = correlations.head(10)
 
-fig3 = go.Figure(
-    data=[
-        go.Bar(
-            y=top_10_corr.index,
-            x=top_10_corr.values,
-            orientation="h",
-            marker=dict(
-                color=top_10_corr.values, colorscale="RdYlGn", reversescale=True
-            ),
-        )
-    ]
-)
+# fig3 = go.Figure(
+#     data=[
+#         go.Bar(
+#             y=top_10_corr.index,
+#             x=top_10_corr.values,
+#             orientation="h",
+#             marker=dict(
+#                 color=top_10_corr.values, colorscale="RdYlGn", reversescale=True
+#             ),
+#         )
+#     ]
+# )
 
-fig3.update_layout(
-    template=plot_template,
-    xaxis_title="Correlation with AQI",
-    yaxis_title="Feature",
-    height=400,
-    showlegend=False,
-)
+# fig3.update_layout(
+#     template=plot_template,
+#     xaxis_title="Correlation with AQI",
+#     yaxis_title="Feature",
+#     height=400,
+#     showlegend=False,
+# )
 
-st.plotly_chart(fig3, use_container_width=True)
+# st.plotly_chart(fig3, use_container_width=True)
 
 # -----------------------------
 # 4. ROLLING AVERAGES
