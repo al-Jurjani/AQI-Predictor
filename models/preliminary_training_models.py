@@ -8,12 +8,11 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from lightgbm import LGBMRegressor
-from shap_analysis import generate_shap_analysis
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import Ridge
-
-# import xgboost
+from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
+from sklearn.linear_model import Lasso, LinearRegression, Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
 
 
@@ -33,65 +32,120 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
     return {"Model": model, "Model Name": name, "RMSE": rmse, "MAE": mae, "R2": r2}
 
 
-# change threshold to equal the rmse of the best model in the mr in hopsworks
-def evaluate_model_performance(metrics, threshold_rmse=50):
-    rmse = metrics.get("RMSE", None)
-    if rmse is None:
-        return False, "RMSE metric missing."
-
-    if rmse <= threshold_rmse:
-        return True, f"Model passed: RMSE={rmse:.2f} ≤ {threshold_rmse}"
-    else:
-        return False, f"Model failed: RMSE={rmse:.2f} > {threshold_rmse}"
-
-
 # turning this into a single function to be used by automated_training.py
 def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
     # --- Main Function Logic ---
     print("Loading data.")
     df = df
+    print("DF shape before preprocessing: ", df.shape)
 
     # Prepare data
     df = df.dropna(axis=1, how="all")
-    X = df.drop(
-        columns=["ow_aqi_index", "timestamp_utc", "city", "timestamp_key"],
-        errors="ignore",
-    )
+    print("DF shape after preprocessing: ", df.shape)
+    # X = df.drop(
+    #     # columns=["ow_aqi_index", "timestamp_utc", "city", "timestamp_key"],
+    #     columns = [
+    #         "ow_aqi_index",
+    #         "timestamp_utc",
+    #         "city",
+    #         "timestamp_key",
+    #         "temp_feels_like",
+    #         "co_no2_ratio",
+    #         "temp_rolling_avg_4h",
+    #         "temp_rolling_avg_30d",
+    #         "temp_rolling_avg_7d",
+    #         "temp_rolling_avg_24h",
+    #         "so2_no2_ratio",
+    #         "temp",
+    #         "so2_wind_disp",
+    #         "co_wind_disp",
+    #         "nh3_wind_disp",
+    #         "pm2_5_wind_disp",
+    #         "no2_wind_disp",
+    #         "no_wind_disp",
+    #         "pm10_wind_disp",
+    #         "o3_wind_disp"
+    #     ],
+    #     errors="ignore",
+    # )
+    top_5_features = [
+        "pm10",
+        "pm2_5",
+        "temp_rolling_avg_30d",
+        "aqi_pct_change_24h",
+        "o3",
+    ]
+    X = df[top_5_features]
     y = df["ow_aqi_index"]
 
-    X = X.fillna(X.mean())
+    # X = X.fillna(X.mean())
 
-    TEST_SPLIT = 0.1
+    TEST_SPLIT = 0.2
     split_idx = int(len(X) * (1 - TEST_SPLIT))
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    X_train = X_train.fillna(X_train.mean())
+    X_test = X_test.fillna(X_test.mean())
+
+    # # 2. Create and Fit Scaler ON TRAINING DATA ONLY
+    # scaler = StandardScaler()
+    # X_train = scaler.fit_transform(X_train)
+
+    # # 3. Transform Test Data (using the scaler fitted on train)
+    # X_test = scaler.transform(X_test)
 
     print("Train size:", X_train.shape, "| Test size:", X_test.shape)
-    # Split data
-    # X_train, X_test, y_train, y_test = train_test_split(
-    #     X, y, test_size=test_size, random_state=split_random_state
-    # )
-    # print(f"Train shape: {X_train.shape}, Test shape: {X_test.shape}\n")
 
-    # Define models
     models = {
-        "Ridge": Ridge(alpha=1.0),
-        "RandomForest": RandomForestRegressor(
-            n_estimators=200, max_depth=12, random_state=42, n_jobs=-1
+        "DecisionTree_shallow": DecisionTreeRegressor(max_depth=3, random_state=1),
+        "DecisionTree_deep": DecisionTreeRegressor(max_depth=8, random_state=2),
+        "LinearRegression": LinearRegression(n_jobs=-1),
+        "Ridge_alpha_1": Ridge(alpha=1.0),
+        "Ridge_low_alpha": Ridge(alpha=0.1, random_state=5),
+        "Ridge_high_alpha": Ridge(alpha=10.0, random_state=6),
+        "Lasso_alpha_1": Lasso(alpha=1.0),
+        "Lasso_low_alpha": Lasso(alpha=0.1, random_state=8),
+        "Lasso_high_alpha": Lasso(alpha=1.0, random_state=9),
+        "KNeighbors_uniform": KNeighborsRegressor(
+            n_neighbors=5, weights="uniform", n_jobs=-1
         ),
-        "XGBoost": XGBRegressor(
+        "KNeighbors_distance": KNeighborsRegressor(
+            n_neighbors=10, weights="distance", n_jobs=-1
+        ),
+        # 'SVR_linear': SVR(kernel='linear', C=1.0),
+        # 'SVR_rbf': SVR(kernel='rbf', C=10.0, gamma='scale'), # 'scale' is a good default
+        "RandomForest_deep": RandomForestRegressor(
+            n_estimators=300, max_depth=8, random_state=14, n_jobs=-1
+        ),
+        "RandomForest_shallow": RandomForestRegressor(
+            n_estimators=150, max_depth=3, random_state=15, n_jobs=-1
+        ),
+        "ExtraTrees": ExtraTreesRegressor(
+            n_estimators=100, max_depth=10, random_state=16, n_jobs=-1
+        ),
+        "XGBoost_deep": XGBRegressor(
             n_estimators=300,
             max_depth=8,
-            learning_rate=0.05,
-            random_state=42,
+            learning_rate=0.01,
+            random_state=17,
             n_jobs=-1,
         ),
-        "LightGBM": LGBMRegressor(
-            n_estimators=300,
-            learning_rate=0.05,
-            max_depth=-1,
-            random_state=42,
+        "XGBoost_shallow": XGBRegressor(
+            n_estimators=100,
+            max_depth=3,
+            learning_rate=0.03,
+            random_state=18,
             n_jobs=-1,
+        ),
+        "LightGBM_default": LGBMRegressor(
+            n_estimators=300,
+            learning_rate=0.01,
+            max_depth=-1,
+            random_state=19,
+            n_jobs=-1,
+        ),
+        "LightGBM_faster": LGBMRegressor(
+            n_estimators=100, learning_rate=0.03, random_state=20, n_jobs=-1
         ),
     }
 
@@ -106,26 +160,22 @@ def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
         result = evaluate_model(name, model, X_train, X_test, y_train, y_test)
         if result["RMSE"] < best_rmse:
             best_rmse = result["RMSE"]
-            # best_mae = result["MAE"]
-            # best_r2 = result["R2"]
+            best_mae = result["MAE"]
+            best_r2 = result["R2"]
             best_model_name = result["Model Name"]
             best_model = result["Model"]
         results.append(result)
 
-    # don't see the point for this at the moment
-    # passed, eval_msg = evaluate_model_performance(metrics)
-    # print(eval_msg)
-
     # # creating a  timestamp
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    # # run_dir = f"models/run_{timestamp}"
-    run_dir = f"models/run_{timestamp}"
+    run_dir = "models/top5_rf_feature_imp___no_standardization"
     os.makedirs(run_dir, exist_ok=True)
 
     metrics_df = pd.DataFrame(results)
+    metrics_df.sort_values(by="RMSE", ascending=True, inplace=True)
     metrics_csv_path = f"{run_dir}/baseline_metrics.csv"
     metrics_df.to_csv(metrics_csv_path, index=False)
-    print(f"Training model metrics saved at: {run_dir}]/baseline_metrics.csv")
+    print(f"Training model metrics saved at: {metrics_csv_path}")
 
     print(f"Best model of this training batch: {best_model_name}")
     best_model_path = f"{run_dir}/{best_model_name.replace(' ', '_').lower()}_model.pkl"
@@ -138,35 +188,14 @@ def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
         "timestamp": timestamp,
         "metrics": {
             "RMSE": float(best_rmse),
-            "MAE": float(
-                metrics_df.loc[
-                    metrics_df["Model Name"] == best_model_name, "MAE"
-                ].values[0]
-            ),
-            "R2": float(
-                metrics_df.loc[
-                    metrics_df["Model Name"] == best_model_name, "R2"
-                ].values[0]
-            ),
+            "MAE": float(best_mae),
+            "R2": float(best_r2),
         },
     }
     metadata_path = os.path.join(run_dir, "best_model_metadata.json")
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=4)
     print(f"Best model meta data saved at: {metadata_path}")
-
-    # SHAP Analysis
-    summary_path, bar_path = generate_shap_analysis(best_model, X_train, run_dir)
-    if summary_path and bar_path:
-        metadata["shap_summary_plot"] = summary_path
-        metadata["shap_bar_plot"] = bar_path
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=4)
-
-    # # will judge later if really needed, we already have the json file
-    # # model_card_path = os.path.join(run_dir, "model_card.txt")
-    # # create_model_card(metadata, model_card_path)
-    # # best_model = metrics_df.sort_values(by="RMSE").iloc[0]["Model"]
 
     return metrics_df
 
@@ -207,4 +236,4 @@ if __name__ == "__main__":
     if metrics is not None:
         print("\n--- Training Complete ---")
         print("Final Metrics:")
-        print(metrics)
+        print(metrics.to_string())

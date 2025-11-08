@@ -1,5 +1,5 @@
 [tool.ruff]
 line-length = 300
-extend-select = ["I"]  # import sorting
+lint.extend-select = ["I"]  # import sorting
 lint.ignore = ["E501"]  # ignore line-too-long if you want
 fix = true

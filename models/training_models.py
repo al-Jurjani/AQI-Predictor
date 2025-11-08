@@ -8,10 +8,10 @@ import joblib
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from sklearn.linear_model import Ridge
-
-# import xgboost
+from lightgbm import LGBMRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from xgboost import XGBRegressor
 
 
 # evaluating model function
@@ -31,17 +31,15 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
 
 
 # change threshold to equal the rmse of the best model in the mr in hopsworks
+# def evaluate_model_performance(metrics, threshold_rmse=50):
+#     rmse = metrics.get("RMSE", None)
+#     if rmse is None:
+#         return False, "RMSE metric missing."
 
-
-def evaluate_model_performance(metrics, threshold_rmse=50):
-    rmse = metrics.get("RMSE", None)
-    if rmse is None:
-        return False, "RMSE metric missing."
-
-    if rmse <= threshold_rmse:
-        return True, f"Model passed: RMSE={rmse:.2f} ≤ {threshold_rmse}"
-    else:
-        return False, f"Model failed: RMSE={rmse:.2f} > {threshold_rmse}"
+#     if rmse <= threshold_rmse:
+#         return True, f"Model passed: RMSE={rmse:.2f} ≤ {threshold_rmse}"
+#     else:
+#         return False, f"Model failed: RMSE={rmse:.2f} > {threshold_rmse}"
 
 
 # turning this into a single function to be used by automated_training.py
@@ -52,29 +50,76 @@ def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
     # Prepare data
     df = df.dropna(axis=1, how="all")
     X = df.drop(
-        columns=["ow_aqi_index", "timestamp_utc", "city", "timestamp_key"],
+        # columns=["ow_aqi_index", "timestamp_utc", "city", "timestamp_key"],
+        columns=[
+            "ow_aqi_index",
+            "timestamp_utc",
+            "city",
+            "timestamp_key",
+            "temp_feels_like",
+            "co_no2_ratio",
+            "temp_rolling_avg_4h",
+            "temp_rolling_avg_30d",
+            "temp_rolling_avg_7d",
+            "temp_rolling_avg_24h",
+            "so2_no2_ratio",
+            "temp",
+            "so2_wind_disp",
+            "co_wind_disp",
+            "nh3_wind_disp",
+            "pm2_5_wind_disp",
+            "no2_wind_disp",
+            "no_wind_disp",
+            "pm10_wind_disp",
+            "o3_wind_disp",
+        ],
         errors="ignore",
     )
     y = df["ow_aqi_index"]
 
-    X = X.fillna(X.mean())
+    # X = X.fillna(X.mean())
 
     TEST_SPLIT = 0.25
     split_idx = int(len(X) * (1 - TEST_SPLIT))
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    X_train = X_train.fillna(X_train.mean())
+    X_test = X_test.fillna(X_test.mean())
+
+    # # 2. Create and Fit Scaler ON TRAINING DATA ONLY
+    # scaler = StandardScaler()
+    # X_train = scaler.fit_transform(X_train)
+
+    # # 3. Transform Test Data (using the scaler fitted on train)
+    # X_test = scaler.transform(X_test)
 
     print("Train size:", X_train.shape, "| Test size:", X_test.shape)
 
     # Define models
     models = {
-        # "Linear Regression": LinearRegression(),
-        "Ridge Regression": Ridge(alpha=1.0),
-        "Ridge Regression (alpha = 0.3)": Ridge(alpha=0.3),
-        # "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
-        # "Random Forest (cheap)": RandomForestRegressor(
-        # n_estimators=50, max_depth=2, random_state=42
-        # ),
+        "RandomForest_deep": RandomForestRegressor(
+            n_estimators=200, max_depth=12, random_state=14, n_jobs=-1
+        ),
+        "XGBoost_deep": XGBRegressor(
+            n_estimators=300,
+            max_depth=8,
+            learning_rate=0.05,
+            random_state=17,
+            n_jobs=-1,
+        ),
+        "XGBoost_shallow": XGBRegressor(
+            n_estimators=100, max_depth=3, learning_rate=0.1, random_state=18, n_jobs=-1
+        ),
+        "LightGBM_default": LGBMRegressor(
+            n_estimators=300,
+            learning_rate=0.05,
+            max_depth=-1,
+            random_state=19,
+            n_jobs=-1,
+        ),
+        "LightGBM_faster": LGBMRegressor(
+            n_estimators=100, learning_rate=0.1, random_state=20, n_jobs=-1
+        ),
     }
 
     # Train and evaluate
@@ -99,6 +144,7 @@ def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
 
     # Save metrics to memory
     metrics_df = pd.DataFrame(results)
+    metrics_df.sort_values(by="RMSE", ascending=True, inplace=True)
     metrics_csv_path = os.path.join(temp_dir, "baseline_metrics.csv")
     metrics_df.to_csv(metrics_csv_path, index=False)
     print("Metrics saved to temp CSV.")
@@ -127,14 +173,6 @@ def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
         json.dump(metadata, f, indent=4)
     print("Metadata saved to temp JSON.")
 
-    # SHAP Analysis (still saves inside temp dir)
-    # summary_path, bar_path = generate_shap_analysis(best_model, X_train, temp_dir)
-    # if summary_path and bar_path:
-    #     metadata["shap_summary_plot"] = summary_path
-    #     metadata["shap_bar_plot"] = bar_path
-    #     with open(metadata_path, "w") as f:
-    #         json.dump(metadata, f, indent=4)
-
     # --- Upload directly to Hopsworks ---
     load_dotenv()
     project = hopsworks.login(api_key_value=os.getenv("HOPSWORKS_API_KEY"))
@@ -157,15 +195,6 @@ def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
     print(
         f"✅ Model '{model_name}' uploaded directly to Hopsworks (no local files retained)."
     )
-
-    # model_entity = mr.get_model(model.name)
-
-    # if evaluate_model_performance == True:
-    #     model_entity.set_tag("production", True)
-    #     print("This version is tagged as production.")
-    # else:
-    #     model_entity.set_tag("production", False)
-    #     print("This version is NOT tagged as production (better model required).")
 
     return best_model, best_model_name, metrics_df
 
@@ -205,5 +234,4 @@ if __name__ == "__main__":
 
     if metrics is not None:
         print("\n--- Training Complete ---")
-        print("Final Metrics:")
         # print(metrics.to_string())
