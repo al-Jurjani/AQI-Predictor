@@ -14,3 +14,5 @@ black
 ruff
 pre-commit
 pandas
+lightgbm
+xgboost
