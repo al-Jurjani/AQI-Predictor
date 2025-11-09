@@ -43,7 +43,7 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
 
 
 # turning this into a single function to be used by automated_training.py
-def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
+def train_and_evaluate_models(df):
     # --- Main Function Logic ---
     df = df
     df = df.sort_values("timestamp_utc").reset_index(drop=True)
@@ -100,6 +100,9 @@ def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
     models = {
         "RandomForest_deep": RandomForestRegressor(
             n_estimators=200, max_depth=12, random_state=14, n_jobs=-1
+        ),
+        "RandomForest_shallow": RandomForestRegressor(
+            n_estimators=150, max_depth=3, random_state=15, n_jobs=-1
         ),
         "XGBoost_deep": XGBRegressor(
             n_estimators=300,
