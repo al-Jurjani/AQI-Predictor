@@ -6,12 +6,10 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import pytz
 import streamlit as st
 from dotenv import load_dotenv
 
-# -----------------------------
-# PAGE CONFIG
-# -----------------------------
 st.set_page_config(
     page_title="JurjaniX10Pearls AQI Predictor - Karachi",
     page_icon="🌤️",
@@ -19,122 +17,124 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# -----------------------------
-# THEME CONFIGURATION
-# -----------------------------
-# if "theme" not in st.session_state:
-#     st.session_state.theme = "Light"
-
-# with st.sidebar:
-#     st.title("⚙️ Settings")
-#     theme_toggle = st.radio(
-#         "Theme",
-#         options=["Light", "Dark"],
-#         index=0 if st.session_state.theme == "Light" else 1,
-#         horizontal=True,
-#     )
-#     st.session_state.theme = theme_toggle
-
-# # Apply theme
-# if st.session_state.theme == "Dark":
-#     bg_color = "#0e1117"
-#     text_color = "#fafafa"
-#     card_bg = "#262730"
-#     plot_template = "plotly_dark"
-# else:
-#     bg_color = "#ffffff"
-#     text_color = "#31333F"
-#     card_bg = "#f0f2f6"
-#     plot_template = "plotly_white"
-
-bg_color = "#0e1117"
-text_color = "#fafafa"
-card_bg = "#262730"
+# Theme colors
+bg_color = "#0a0e27"
+text_color = "#e8eaf6"
+card_bg = "#1a1f3a"
+accent_color = "#4fc3f7"
 plot_template = "plotly_dark"
 
 st.markdown(
     f"""
     <style>
         .main {{
-            background-color: {bg_color};
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
             color: {text_color};
+        }}
+        .stApp {{
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
         }}
         .metric-card {{
-            background-color: {card_bg};
-            padding: 20px;
-            border-radius: 10px;
+            background: linear-gradient(145deg, {card_bg}, #252d4f);
+            padding: 28px 20px;
+            border-radius: 16px;
             text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+            border: 1px solid rgba(79, 195, 247, 0.1);
+            transition: transform 0.2s;
+            margin-bottom: 10px;
+        }}
+        .metric-card:hover {{
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(79, 195, 247, 0.2);
         }}
         .metric-value {{
-            font-size: 2.5rem;
-            font-weight: bold;
+            font-size: 3rem;
+            font-weight: 700;
             color: {text_color};
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            letter-spacing: -1px;
         }}
         .metric-label {{
-            font-size: 1rem;
+            font-size: 0.95rem;
             color: {text_color};
-            opacity: 0.7;
+            opacity: 0.75;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+            margin-bottom: 12px;
         }}
-        h1, h2, h3 {{
+        .metric-category {{
+            font-size: 1rem;
+            margin-top: 12px;
+            font-weight: 600;
+            opacity: 0.9;
+        }}
+        h1 {{
             color: {text_color} !important;
+            font-weight: 700 !important;
+            font-size: 2.8rem !important;
+            margin-bottom: 0.3rem !important;
+            text-shadow: 0 2px 12px rgba(79, 195, 247, 0.3);
+        }}
+        h2, h3 {{
+            color: {text_color} !important;
+            font-weight: 600 !important;
+        }}
+        .last-updated {{
+            color: {accent_color};
+            font-size: 1rem;
+            font-weight: 500;
+            opacity: 0.9;
+        }}
+        hr {{
+            border-color: rgba(79, 195, 247, 0.2) !important;
+            margin: 2rem 0 !important;
+        }}
+        [data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #1a1f3a 0%, #0a0e27 100%);
+        }}
+        .stPlotlyChart {{
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
         }}
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-# -----------------------------
-# HOPSWORKS CONNECTION
-# -----------------------------
-# st.sidebar.info("🔄 Loading data...")
-
 try:
     load_dotenv()
     HOPSWORKS_API_KEY = os.getenv("hopsworks_api_key")
-
-    # Connect to Hopsworks
     project = hopsworks.login(api_key_value=HOPSWORKS_API_KEY, project="jurjanji_AQI")
 
     st.sidebar.success("✅ Connected to Hopsworks")
 
-    # Get model registry and feature store
     mr = project.get_model_registry()
     fs = project.get_feature_store()
 
-    # Load all model versions
-    # st.sidebar.info("📦 Loading best model...")
-
-    EVALUATION_METRIC = "rmse"  # or r2, rmse
-    SORT_METRICS_BY = "min"  # your sorting criteria
+    EVALUATION_METRIC = "rmse"
+    SORT_METRICS_BY = "min"
     best_model = mr.get_best_model("best_aqi_model", EVALUATION_METRIC, SORT_METRICS_BY)
 
     st.sidebar.success(f"✅ Best Model Version: v{best_model.version}")
     st.sidebar.metric("RMSE", f"{best_model.training_metrics.get('rmse', 'N/A')}")
-    # st.sidebar.metric("R²", f"{best_model.training_metrics.get('r2', 'N/A')}")
+    # st.sidebar.info("Best model loaded!")
 
-    st.sidebar.info("Best model loaded!")
-
-    # Download model
-    # st.sidebar.info("⬇️ Downloading model...")
     model_dir = best_model.download()
-
-    # Find pickle file
     pkl_files = [f for f in os.listdir(model_dir) if f.endswith("_model.pkl")]
+
     if not pkl_files:
-        st.error("No model pickle file found in downloaded directory!")
+        st.error("No model pickle file found!")
         st.stop()
 
     model_path = os.path.join(model_dir, pkl_files[0])
     model = joblib.load(model_path)
-
     st.sidebar.success(f"✅ Loaded: {pkl_files[0]}")
 
-    # Load feature data
-    # st.sidebar.info("📊 Loading feature data...")
     fg = fs.get_feature_group(name="air_quality_data", version=1)
     df = fg.read()
-
     st.sidebar.success(f"✅ Loaded {len(df)} records")
 
 except Exception as e:
@@ -142,34 +142,31 @@ except Exception as e:
     st.exception(e)
     st.stop()
 
-# -----------------------------
-# DATA PREPROCESSING
-# -----------------------------
-# Sort by timestamp
+# Timezone conversion
+PKT = pytz.timezone("Asia/Karachi")
+
 if "timestamp_utc" in df.columns:
+    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"])
+    if df["timestamp_utc"].dt.tz is None:
+        df["timestamp_utc"] = (
+            df["timestamp_utc"].dt.tz_localize("UTC").dt.tz_convert(PKT)
+        )
+    else:
+        df["timestamp_utc"] = df["timestamp_utc"].dt.tz_convert(PKT)
     df = df.sort_values("timestamp_utc").reset_index(drop=True)
     time_col = "timestamp_utc"
 elif "timestamp" in df.columns:
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    if df["timestamp"].dt.tz is None:
+        df["timestamp"] = df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(PKT)
+    else:
+        df["timestamp"] = df["timestamp"].dt.tz_convert(PKT)
     df = df.sort_values("timestamp").reset_index(drop=True)
     time_col = "timestamp"
 else:
     st.error("No timestamp column found!")
     st.stop()
 
-# Convert to datetime if needed
-df[time_col] = pd.to_datetime(df[time_col])
-
-# Identify feature columns
-# exclude_cols = [time_col, 'ow_aqi_index', 'aqi_delta_24h', 'aqi_delta_3h',
-#                 'aqi_pct_change_24h', 'aqi_pct_change_3h']
-# exclude_cols = [
-#     "ow_aqi_index",
-#     "city",
-#     "timestamp",
-#     "timestamp_utc",
-#     time_col,
-#     "timestamp_key",
-# ]
 exclude_cols = [
     "ow_aqi_index",
     "timestamp_utc",
@@ -194,53 +191,29 @@ exclude_cols = [
     "pm10_wind_disp",
     "o3_wind_disp",
 ]
-# feature_cols = [c for c in df.columns if c not in exclude_cols and df[c].dtype in ['int64', 'float64']]
 feature_cols = [c for c in df.columns if c not in exclude_cols]
-
-# Get actual AQI column name
 aqi_col = "ow_aqi_index" if "ow_aqi_index" in df.columns else "AQI"
 
 
-# -----------------------------
-# PREDICTION FUNCTIONS
-# -----------------------------
 def predict_current(model, df, feature_cols):
-    """Predict current AQI"""
     latest_row = df.iloc[-1:][feature_cols]
     return model.predict(latest_row)[0]
-
-
-# def forecast_future(model, df, feature_cols, hours=[24, 48, 72]):
-#     """Forecast future AQI values"""
-#     forecasts = {}
-#     latest_features = df.iloc[-1:][feature_cols].copy()
-
-#     for h in hours:
-#         # Simple approach: use latest features for prediction
-#         pred = model.predict(latest_features)[0]
-#         forecasts[h] = pred
-
-#     return forecasts
 
 
 def forecast_future(model, df, feature_cols, hours=[24, 48, 72]):
     forecasts = {}
     current_features = df.iloc[-1][feature_cols].copy()
     latest_timestamp = df[time_col].iloc[-1]
-
-    previous_aqi = df["ow_aqi_index"].iloc[-1]  # Start with last known AQI
+    previous_aqi = df["ow_aqi_index"].iloc[-1]
 
     for h in hours:
         future_features = current_features.copy()
         future_time = latest_timestamp + timedelta(hours=h)
 
-        # Update time features
         future_features["hour"] = future_time.hour
         future_features["day_of_week"] = future_time.dayofweek
         future_features["day_of_month"] = future_time.day
         future_features["month"] = future_time.month
-
-        # Update cyclical features
         future_features["hour_sin"] = np.sin(2 * np.pi * future_time.hour / 24)
         future_features["hour_cos"] = np.cos(2 * np.pi * future_time.hour / 24)
         future_features["day_of_week_sin"] = np.sin(
@@ -252,7 +225,6 @@ def forecast_future(model, df, feature_cols, hours=[24, 48, 72]):
         future_features["month_sin"] = np.sin(2 * np.pi * (future_time.month - 1) / 12)
         future_features["month_cos"] = np.cos(2 * np.pi * (future_time.month - 1) / 12)
 
-        # KEY: Update AQI-based features using previous prediction
         if "aqi_delta_3h" in future_features.index:
             future_features["aqi_delta_3h"] = previous_aqi - df["ow_aqi_index"].iloc[-2]
         if "aqi_delta_24h" in future_features.index:
@@ -270,116 +242,74 @@ def forecast_future(model, df, feature_cols, hours=[24, 48, 72]):
                 ((previous_aqi - old_val) / old_val * 100) if old_val != 0 else 0
             )
 
-        # Make prediction
         pred = model.predict(future_features.values.reshape(1, -1))[0]
         forecasts[h] = pred
-
-        # Use this prediction for the next iteration
         previous_aqi = pred
-        current_features = future_features  # Carry forward updated features
-
-        print(f"+{h}h: pred={pred:.2f}, used previous_aqi={previous_aqi:.2f}")
+        current_features = future_features
 
     return forecasts
 
 
-# Make predictions
 current_aqi = predict_current(model, df, feature_cols)
 future_forecasts = forecast_future(model, df, feature_cols)
 
 
-# -----------------------------
-# AQI CATEGORY FUNCTION
-# -----------------------------
 def get_aqi_category(aqi):
-    """Return AQI category and color"""
     if aqi <= 1:
         return "Good", "#00e400"
     elif aqi <= 2:
         return "Moderate", "#ffff00"
     elif aqi <= 3:
-        return "Unhealthy for Sensitive Groups", "#ff7e00"
+        return "Unhealthy for Sensitive", "#ff7e00"
     elif aqi <= 4:
         return "Unhealthy", "#ff0000"
     else:
-        return "Hazardous", "#7e0023"
+        return "Hazardous", "#8b0000"
 
 
-# -----------------------------
-# HEADER
-# -----------------------------
-st.title("🌤️ Pearls AQI Predictor Dashboard")
-st.markdown(f"*Last updated: {df[time_col].iloc[-1].strftime('%Y-%m-%d %H:%M:%S')}*")
+# Header
+st.title("Karachi AQI Predictor")
+st.markdown(
+    "Made by Zuhair Farhan - Github repo link: https://github.com/al-Jurjani/AQI-Predictor"
+)
+st.markdown(
+    f'<p class="last-updated">Last updated: {df[time_col].iloc[-1].strftime("%Y-%m-%d %H:%M:%S PKT")}</p>',
+    unsafe_allow_html=True,
+)
+st.markdown("")
 
-# -----------------------------
-# CURRENT & FORECAST AQI METRICS
-# -----------------------------
-st.subheader("📊 AQI Predictions")
+# Predictions
+st.subheader("AQI Predictions")
 
 col1, col2, col3, col4 = st.columns(4)
 
-with col1:
-    category, color = get_aqi_category(current_aqi)
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">Current AQI</div>
-            <div class="metric-value" style="color: {color};">{current_aqi:.3f}</div>
-            <div class="metric-label">{category}</div>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
+predictions = [
+    (col1, "Current AQI", current_aqi),
+    (col2, "+24 Hours", future_forecasts[24]),
+    (col3, "+48 Hours", future_forecasts[48]),
+    (col4, "+72 Hours", future_forecasts[72]),
+]
 
-with col2:
-    category, color = get_aqi_category(future_forecasts[24])
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">Tomorrow (+24h)</div>
-            <div class="metric-value" style="color: {color};">{future_forecasts[24]:.3f}</div>
-            <div class="metric-label">{category}</div>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-with col3:
-    category, color = get_aqi_category(future_forecasts[48])
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">Day 2 (+48h)</div>
-            <div class="metric-value" style="color: {color};">{future_forecasts[48]:.3f}</div>
-            <div class="metric-label">{category}</div>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-with col4:
-    category, color = get_aqi_category(future_forecasts[72])
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">Day 3 (+72h)</div>
-            <div class="metric-value" style="color: {color};">{future_forecasts[72]:.3f}</div>
-            <div class="metric-label">{category}</div>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
+for col, label, value in predictions:
+    category, color = get_aqi_category(value)
+    with col:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">{label}</div>
+                <div class="metric-value" style="color: {color};">{value:.2f}</div>
+                <div class="metric-category" style="color: {color};">{category}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 st.markdown("---")
 
-# -----------------------------
-# VISUALIZATIONS
-# -----------------------------
+# Trend Chart
+st.subheader("7-Day AQI Trend")
 
-# 1. AQI TREND (PAST 7 DAYS)
-st.subheader("📈 AQI Trend - Past 7 Days")
-
-past_week = df.tail(7 * 24)  # Last 7 days if hourly data
+past_week = df.tail(7 * 24)
 
 fig1 = go.Figure()
 fig1.add_trace(
@@ -388,178 +318,162 @@ fig1.add_trace(
         y=past_week[aqi_col],
         mode="lines",
         name="Historical AQI",
-        line=dict(color="#1f77b4", width=2),
+        line=dict(color="#4fc3f7", width=3),
+        fill="tozeroy",
+        fillcolor="rgba(79, 195, 247, 0.1)",
     )
 )
 
-# Add current prediction line
 fig1.add_hline(
     y=current_aqi,
     line_dash="dash",
-    line_color="orange",
-    annotation_text=f"Current Prediction: {current_aqi:.2f}",
+    line_color="#ffa726",
+    line_width=2,
+    annotation_text=f"Current: {current_aqi:.2f}",
     annotation_position="top right",
 )
 
 fig1.update_layout(
     template=plot_template,
-    xaxis_title="Date",
-    yaxis_title="AQI",
+    xaxis_title="",
+    yaxis_title="AQI Index",
     hovermode="x unified",
-    height=400,
+    height=420,
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(size=13),
+    margin=dict(l=50, r=30, t=30, b=50),
 )
 
 st.plotly_chart(fig1, use_container_width=True)
 
-# -----------------------------
-# # 2. FORECAST BAR CHART
-# st.subheader("🔮 3-Day Forecast Comparison")
-
-# forecast_df = pd.DataFrame(
-#     {
-#         "Period": ["Current", "Day 1", "Day 2", "Day 3"],
-#         "AQI": [
-#             current_aqi,
-#             future_forecasts[24],
-#             future_forecasts[48],
-#             future_forecasts[72],
-#         ],
-#         "Color": [
-#             get_aqi_category(v)[1]
-#             for v in [
-#                 current_aqi,
-#                 future_forecasts[24],
-#                 future_forecasts[48],
-#                 future_forecasts[72],
-#             ]
-#         ],
-#     }
-# )
-
-# fig2 = go.Figure(
-#     data=[
-#         go.Bar(
-#             x=forecast_df["Period"],
-#             y=forecast_df["AQI"],
-#             marker_color=forecast_df["Color"],
-#             text=forecast_df["AQI"].round(0),
-#             textposition="outside",
-#         )
-#     ]
-# )
-
-# fig2.update_layout(
-#     template=plot_template,
-#     yaxis_title="AQI Value",
-#     xaxis_title="Time Period",
-#     height=400,
-#     showlegend=False,
-# )
-
-# st.plotly_chart(fig2, use_container_width=True)
-
-# -----------------------------
-# # 3. FEATURE IMPORTANCE / CORRELATIONS
-# st.subheader("🔍 Top Factors Influencing AQI")
-
-# # Calculate correlations with AQI
-# correlations = (
-#     df[feature_cols + [aqi_col]]
-#     .corr()[aqi_col]
-#     .drop(aqi_col)
-#     .sort_values(ascending=False)
-# )
-# top_10_corr = correlations.head(10)
-
-# fig3 = go.Figure(
-#     data=[
-#         go.Bar(
-#             y=top_10_corr.index,
-#             x=top_10_corr.values,
-#             orientation="h",
-#             marker=dict(
-#                 color=top_10_corr.values, colorscale="RdYlGn", reversescale=True
-#             ),
-#         )
-#     ]
-# )
-
-# fig3.update_layout(
-#     template=plot_template,
-#     xaxis_title="Correlation with AQI",
-#     yaxis_title="Feature",
-#     height=400,
-#     showlegend=False,
-# )
-
-# st.plotly_chart(fig3, use_container_width=True)
-
-# -----------------------------
-# 4. ROLLING AVERAGES
-st.subheader("🌀 AQI Rolling Averages")
+# Rolling Averages
+st.subheader("Rolling AQI Averages")
 
 df["AQI_24h_avg"] = df[aqi_col].rolling(window=24, min_periods=1).mean()
 df["AQI_72h_avg"] = df[aqi_col].rolling(window=72, min_periods=1).mean()
 
 recent_data = df.tail(7 * 24)
 
-fig4 = go.Figure()
-fig4.add_trace(
+fig2 = go.Figure()
+fig2.add_trace(
     go.Scatter(
         x=recent_data[time_col],
         y=recent_data[aqi_col],
         mode="lines",
         name="Actual AQI",
-        line=dict(color="lightgray", width=1),
-        opacity=0.5,
+        line=dict(color="rgba(255,255,255,0.2)", width=1),
     )
 )
-fig4.add_trace(
+fig2.add_trace(
     go.Scatter(
         x=recent_data[time_col],
         y=recent_data["AQI_24h_avg"],
         mode="lines",
         name="24h Average",
-        line=dict(color="#ff7f0e", width=2),
+        line=dict(color="#ff7043", width=3),
     )
 )
-fig4.add_trace(
+fig2.add_trace(
     go.Scatter(
         x=recent_data[time_col],
         y=recent_data["AQI_72h_avg"],
         mode="lines",
         name="72h Average",
-        line=dict(color="#2ca02c", width=2),
+        line=dict(color="#66bb6a", width=3),
     )
 )
 
-fig4.update_layout(
+fig2.update_layout(
     template=plot_template,
-    xaxis_title="Date",
-    yaxis_title="AQI",
+    xaxis_title="",
+    yaxis_title="AQI Index",
     hovermode="x unified",
-    height=400,
+    height=420,
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(size=13),
+    margin=dict(l=50, r=30, t=30, b=50),
 )
 
-st.plotly_chart(fig4, use_container_width=True)
+st.plotly_chart(fig2, use_container_width=True)
 
-# -----------------------------
-# FOOTER
-# -----------------------------
+
 st.markdown("---")
-st.caption(
-    "📡 Data source: Hopsworks Feature Store | 🤖 Model auto-updated daily | 🔄 Predictions refresh on page reload"
+st.subheader("Understanding AQI Scales Across Regions")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown(
+        """
+    **OpenWeather Scale** (This Dashboard)
+    - **1** = Good 🟢
+    - **2** = Fair 🟡
+    - **3** = Moderate 🟠
+    - **4** = Poor 🔴
+    - **5** = Very Poor ⚫
+
+    *Decimal values (e.g., 2.3) show gradations between levels*
+    """
+    )
+
+    st.markdown(
+        """
+    **Europe (EAQI) Scale**
+    - 0-25 = Very Low (≈ OW 1)
+    - 25-50 = Low (≈ OW 2)
+    - 50-75 = Medium (≈ OW 3)
+    - 75-100 = High (≈ OW 4)
+    - 100+ = Very High (≈ OW 5)
+    """
+    )
+
+with col2:
+    st.markdown(
+        """
+    **USA (EPA) Scale**
+    - 0-50 = Good (≈ OW 1)
+    - 51-100 = Moderate (≈ OW 2)
+    - 101-150 = Unhealthy for Sensitive (≈ OW 3)
+    - 151-200 = Unhealthy (≈ OW 4)
+    - 201-300 = Very Unhealthy (≈ OW 5)
+    - 301+ = Hazardous
+    """
+    )
+
+    st.markdown(
+        """
+    **China Scale**
+    - 0-50 = Excellent (≈ OW 1)
+    - 51-100 = Good (≈ OW 1-2)
+    - 101-150 = Lightly Polluted (≈ OW 3)
+    - 151-200 = Moderately Polluted (≈ OW 3-4)
+    - 201-300 = Heavily Polluted (≈ OW 4-5)
+    - 300+ = Severely Polluted
+    """
+    )
+
+st.info(
+    "**Quick Reference:** An OpenWeather prediction of **2.3** (Fair) ≈ **60-80** on USA EPA scale, and ≈ **30-40** on Europe scale, and ≈ **70-90** on China scale."
 )
+st.info(
+    "**Sources:** https://openweathermap.org/api/air-pollution and https://openweathermap.org/air-pollution-index-levels"
+)
+
+# Footer
+st.markdown("---")
+st.caption("Data: Hopsworks Feature Store | Auto-updated daily | JurjaniX10Pearls")
 
 with st.sidebar:
     st.markdown("---")
-    st.markdown("### 📖 AQI Categories")
+    st.markdown("### AQI Scale")
     st.markdown(
         """
-    - **0-1**: Good 🟢
-    - **1-2**: Moderate 🟡
-    - **2-3**: Unhealthy for Sensitive Groups 🟠
-    - **3-4**: Unhealthy 🔴
-    - **4-5**: Hazardous ⚫
+    🟢 **0-1** Good
+    🟡 **1-2** Moderate
+    🟠 **2-3** Unhealthy (Sensitive)
+    🔴 **3-4** Unhealthy
+    ⚫ **4-5** Hazardous
     """
     )

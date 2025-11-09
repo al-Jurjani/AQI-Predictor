@@ -46,6 +46,7 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
 def train_and_evaluate_models(df, test_size=0.2, split_random_state=21):
     # --- Main Function Logic ---
     df = df
+    df = df.sort_values("timestamp_utc").reset_index(drop=True)
 
     # Prepare data
     df = df.dropna(axis=1, how="all")
