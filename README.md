@@ -1,8 +1,8 @@
-# AQI-Predictor
+# 10-Pearls Shine Internship - Karachi AQI Predictor
 
 ![Python](https://img.shields.io/badge/-Python-blue?logo=python&logoColor=white)
 
-# A Data Science Project
+## A Data Science Project
 
 This project is a complete solution for predicting the Air Quality Index (AQI) for the city of Karachi, using weather and air quality data from the OpenWeather API. It leverages a modern stack to automate data fetching, model training, and deployment, and includes a user-friendly frontend made by streamlit to visualize the predictions.
 
