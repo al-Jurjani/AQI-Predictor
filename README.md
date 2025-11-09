@@ -1,7 +1,6 @@
 # AQI-Predictor
 
 ![Python](https://img.shields.io/badge/-Python-blue?logo=python&logoColor=white)
-![10Pearls](https://10pearls.com/)
 
 # A Data Science Project
 
@@ -21,7 +20,7 @@ The project was done during an internship in 10Pearls' Shine Program.
     3.  A workflow for automated model training and evaluation.
 - **Pre-commit Hooks**: The project uses pre-commit hooks with `black`, `ruff`, and other linters to maintain code quality and consistency.
 - **Interactive Frontend**: A web application built with Streamlit provides a user-friendly interface to get AQI predictions and view data visualizations.
-- **Cloud Deployment**: The Streamlit application is designed to be hosted on an Azure Virtual Machine, making it accessible to a wider audience (Note: This is a planned feature).
+- **Cloud Deployment**: The Streamlit application is hosted on an Azure Virtual Machine, making it accessible to a wider audience!
 
 
 ## 📁 Repository Structure
