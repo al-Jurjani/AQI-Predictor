@@ -22,7 +22,7 @@ The project was done during an internship in 10Pearls' Shine Program.
 - **Pre-commit Hooks**: The project uses pre-commit hooks with `black`, `ruff`, and other linters to maintain code quality and consistency.
 - **Interactive Frontend**: A web application built with Streamlit provides a user-friendly interface to get AQI predictions and view data visualizations.
 - **Cloud Deployment**: The Streamlit application is designed to be hosted on an Azure Virtual Machine, making it accessible to a wider audience (Note: This is a planned feature).
-```
+
 
 ## 📁 Repository Structure
 
